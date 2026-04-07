@@ -34,9 +34,10 @@ defmodule ExAlign.MixProject do
 
   defp package do
     [
+      files: ~w(lib dev .formatter.exs mix.* Makefile README* LICENSE*),
       licenses: ["MIT"],
       maintainers: ["Serge Aleynikov"],
-      links: %{}
+      links: %{"GitHub" => "https://github.com/saleyn/exalign"}
     ]
   end
 
