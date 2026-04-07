@@ -165,7 +165,7 @@ style is preserved and column alignment is layered on top.
 
 `exalign` is a self-contained escript that formats Elixir files without
 requiring a Mix project. Download the latest binary from the
-[GitHub releases page](../../releases/latest) and place it somewhere on your
+[GitHub releases page](https://github.com/saleyn/exalign/releases/latest) and place it somewhere on your
 `$PATH`.
 
 ### Usage
@@ -425,8 +425,8 @@ that you can review the diff and revert if needed.
 The authors provide this software **as-is**, without warranty of any kind.
 They shall not be liable for any loss or corruption of source code, data, or
 other assets arising from the use of this tool. See the full disclaimer in
-the [MIT License](LICENSE).
+the [MIT License](https://github.com/saleyn/exalign/blob/main/LICENSE).
 
 ## License
 
-MIT License. Copyright (c) 2026 Serge Aleynikov. See [LICENSE](LICENSE).
+MIT License. Copyright (c) 2026 Serge Aleynikov. See [LICENSE](https://github.com/saleyn/exalign/blob/main/LICENSE).

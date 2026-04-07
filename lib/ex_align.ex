@@ -42,6 +42,13 @@ defmodule ExAlign do
   end
 
   @impl Mix.Tasks.Format
+  @doc """
+  Formats the given Elixir source `contents` string, applying column alignment
+  on top of the standard `Code.format_string!` pass.
+
+  `opts` may include any standard formatter options plus the ExAlign-specific
+  keys `:wrap_short_lines`, `:wrap_with`, and `:line_length`.
+  """
   def format(contents, opts) do
     # Before running the standard formatter, detect any macro names that appear in
     # aligned groups (e.g. `field :name, opts`).  We add them to

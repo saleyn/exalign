@@ -43,5 +43,8 @@ clean:
 	mix clean
 	rm -rf _build deps .cover exalign
 
+doc docs:
+	mix docs
+	
 publish:
 	mix hex.publish$(if $(replace), --replace)

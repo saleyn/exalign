@@ -13,7 +13,15 @@ defmodule ExAlign.MixProject do
       package: package(),
       deps: deps(),
       test_coverage: [output: ".cover"],
-      escript: escript()
+      escript: escript(),
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "LICENSE"]
     ]
   end
 
@@ -37,6 +45,8 @@ defmodule ExAlign.MixProject do
   end
 
   defp deps do
-    []
+    [
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+    ]
   end
 end
