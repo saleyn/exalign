@@ -185,8 +185,7 @@ Files are formatted in-place. Directories are walked recursively for
 | `--wrap-short-lines` | off | Keep `->` arms expanded instead of collapsing them |
 | `--wrap-with backslash\|do` | `backslash` | How to format multi-line `with` blocks |
 | `--check` | off | Exit 1 if any file would be changed; write nothing |
-| `--dry-run` | off | Print reformatted content to stdout; write nothing |
-| `-h`, `--help` | | Print usage |
+| `--dry-run` | off | Print reformatted content to stdout; write nothing || `-s`, `--silent` | off | Suppress stdout output (stderr warnings still shown) || `-h`, `--help` | | Print usage |
 
 ### Examples
 

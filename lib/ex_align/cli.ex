@@ -14,6 +14,7 @@ defmodule ExAlign.CLI do
       --check               Check formatting without writing files; exit 1 if any
                             file would be changed
       --dry-run             Print would-be changes without writing files
+      -s, --silent          Suppress all stdout output
       -h, --help            Print this help
 
   ## Examples
@@ -29,48 +30,66 @@ defmodule ExAlign.CLI do
     wrap_with: :string,
     check: :boolean,
     dry_run: :boolean,
+    silent: :boolean,
     help: :boolean
   ]
 
-  @aliases [h: :help]
+  @aliases [h: :help, s: :silent]
 
   def main(argv) do
+    case run(argv) do
+      :ok            -> :ok
+      {:error, code} -> System.halt(code)
+    end
+  end
+
+  @doc """
+  Parses `argv` and runs the formatter. Returns `:ok` on success or
+  `{:error, exit_code}` on failure. Does **not** call `System.halt/1`, making
+  it safe to call from tests.
+  """
+  def run(argv) do
     {opts, paths, invalid} = OptionParser.parse(argv, strict: @switches, aliases: @aliases)
 
-    if invalid != [] do
-      for {flag, _} <- invalid, do: warn("Unknown option: #{flag}")
-      halt(1)
-    end
+    cond do
+      invalid != [] ->
+        for {flag, _} <- invalid, do: warn("Unknown option: #{flag}")
+        {:error, 1}
 
-    if opts[:help] || paths == [] do
-      IO.puts(@moduledoc)
-      if paths == [], do: halt(1)
-      halt(0)
-    end
+      opts[:help] ->
+        IO.puts(@moduledoc)
+        :ok
 
-    format_opts = build_format_opts(opts)
-    mode = cond do
-      opts[:check]   -> :check
-      opts[:dry_run] -> :dry_run
-      true           -> :write
-    end
+      paths == [] ->
+        IO.puts(@moduledoc)
+        {:error, 1}
 
-    paths
-    |> Enum.flat_map(&collect_files/1)
-    |> Enum.reduce({:ok, 0}, fn file, {status, count} ->
-      case process_file(file, format_opts, mode) do
-        :ok      -> {status, count}
-        :changed -> {:changed, count + 1}
-        :error   -> {:error, count}
-      end
-    end)
-    |> case do
-      {:ok, _}      -> :ok
-      {:changed, n} ->
-        IO.puts(:stderr, "#{n} file(s) would be reformatted")
-        halt(1)
-      {:error, _}   ->
-        halt(1)
+      true ->
+        format_opts = build_format_opts(opts)
+        silent = opts[:silent] || false
+        mode = cond do
+          opts[:check]   -> :check
+          opts[:dry_run] -> :dry_run
+          true           -> :write
+        end
+
+        paths
+        |> Enum.flat_map(&collect_files/1)
+        |> Enum.reduce({:ok, 0}, fn file, {status, count} ->
+          case process_file(file, format_opts, mode, silent) do
+            :ok      -> {status, count}
+            :changed -> {:changed, count + 1}
+            :error   -> {:error, count}
+          end
+        end)
+        |> case do
+          {:ok, _}      -> :ok
+          {:changed, n} ->
+            silent || IO.puts(:stderr, "#{n} file(s) would be reformatted")
+            {:error, 1}
+          {:error, _}   ->
+            {:error, 1}
+        end
     end
   end
 
@@ -93,7 +112,7 @@ defmodule ExAlign.CLI do
 
     format_opts =
       if opts[:wrap_with],
-        do: Keyword.put(format_opts, :wrap_with, String.to_existing_atom(opts[:wrap_with])),
+        do: Keyword.put(format_opts, :wrap_with, String.to_atom(opts[:wrap_with])),
         else: format_opts
 
     format_opts
@@ -113,7 +132,7 @@ defmodule ExAlign.CLI do
     end
   end
 
-  defp process_file(path, format_opts, mode) do
+  defp process_file(path, format_opts, mode, silent) do
     original = File.read!(path)
     formatted = ExAlign.format(original, format_opts)
 
@@ -122,17 +141,17 @@ defmodule ExAlign.CLI do
         :ok
 
       mode == :check ->
-        IO.puts(:stderr, "would reformat: #{path}")
+        silent || IO.puts(:stderr, "would reformat: #{path}")
         :changed
 
       mode == :dry_run ->
-        IO.puts("--- #{path}")
-        IO.puts(formatted)
+        silent || IO.puts("--- #{path}")
+        silent || IO.puts(formatted)
         :changed
 
       true ->
         File.write!(path, formatted)
-        IO.puts("reformatted: #{path}")
+        silent || IO.puts("reformatted: #{path}")
         :ok
     end
   rescue
@@ -142,6 +161,4 @@ defmodule ExAlign.CLI do
   end
 
   defp warn(msg), do: IO.puts(:stderr, "exalign: #{msg}")
-
-  defp halt(code), do: System.halt(code)
 end
