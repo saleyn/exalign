@@ -1,0 +1,42 @@
+defmodule ExAlign.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :ex_align,
+      version: "0.1.0",
+      elixir: "~> 1.13",
+      start_permanent: Mix.env() == :prod,
+      description: "A Mix formatter plugin that column-aligns Elixir code",
+      elixirc_paths: elixirc_paths(Mix.env()),
+      test_load_filters: [~r/_test\.exs$/],
+      package: package(),
+      deps: deps(),
+      test_coverage: [output: ".cover"],
+      escript: escript()
+    ]
+  end
+
+  defp escript do
+    [main_module: ExAlign.CLI, name: "exalign"]
+  end
+
+  defp elixirc_paths(:dev), do: ["lib"] ++ Path.wildcard("dev/mix/**/*.ex")
+  defp elixirc_paths(_), do: ["lib"]
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      maintainers: ["Serge Aleynikov"],
+      links: %{}
+    ]
+  end
+
+  def application do
+    [extra_applications: [:logger]]
+  end
+
+  defp deps do
+    []
+  end
+end
