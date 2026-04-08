@@ -123,7 +123,7 @@ left expanded.
 ```elixir
 # mix.exs
 defp deps do
-  [{:ex_align, path: "/path/to/formatter"}]
+  [{:exalign, path: "/path/to/formatter"}]
 end
 ```
 
@@ -215,8 +215,8 @@ exalign --dry-run lib/my_module.ex
 ### Building from source
 
 ```bash
-git clone https://github.com/your-org/ex_align.git
-cd ex_align
+git clone https://github.com/saleyn/exalign.git
+cd exalign
 make escript        # produces ./exalign
 ```
 

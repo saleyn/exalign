@@ -83,11 +83,12 @@ defmodule ExAlign.CLI do
           end
         end)
         |> case do
-          {:ok, _}      -> :ok
+          {:ok, _} ->
+            :ok
           {:changed, n} ->
             silent || IO.puts(:stderr, "#{n} file(s) would be reformatted")
             {:error, 1}
-          {:error, _}   ->
+          {:error, _} ->
             {:error, 1}
         end
     end

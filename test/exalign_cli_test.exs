@@ -10,7 +10,7 @@ defmodule ExAlign.CLITest do
   defp run(args), do: ExAlign.CLI.run(args)
 
   defp with_tmp_file(content, ext \\ ".ex", fun) do
-    path = Path.join(System.tmp_dir!(), "ex_align_test_#{:erlang.unique_integer([:positive])}#{ext}")
+    path = Path.join(System.tmp_dir!(), "exalign_test_#{:erlang.unique_integer([:positive])}#{ext}")
     File.write!(path, content)
 
     try do
@@ -21,7 +21,7 @@ defmodule ExAlign.CLITest do
   end
 
   defp with_tmp_dir(fun) do
-    dir = Path.join(System.tmp_dir!(), "ex_align_test_dir_#{:erlang.unique_integer([:positive])}")
+    dir = Path.join(System.tmp_dir!(), "exalign_test_dir_#{:erlang.unique_integer([:positive])}")
     File.mkdir_p!(dir)
 
     try do

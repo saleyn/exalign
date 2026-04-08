@@ -19,7 +19,7 @@ defmodule ExAlign do
         inputs: ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
       ]
 
-  And add `ex_align` to your `mix.exs` dependencies.
+  And add `exalign` to your `mix.exs` dependencies.
   """
 
   @behaviour Mix.Tasks.Format
@@ -807,6 +807,9 @@ defmodule ExAlign do
   end
 
   # Group consecutive lines that share the same alignment type *and* indentation.
+  # Blank lines and comment lines at the same indentation are treated as
+  # transparent: they are absorbed into the current group rather than breaking
+  # it, provided the next non-blank/comment line continues the same pattern.
   # Groups are accumulated in newest-first order, then reversed at the end.
   defp lines_to_groups(lines) do
     lines
@@ -816,14 +819,57 @@ defmodule ExAlign do
           [[line]]
 
         [current | rest] ->
-          if same_group?(List.last(current), line) do
-            [current ++ [line] | rest]
-          else
-            [[line] | groups]
+          group_type = effective_group_type(current)
+          group_indent = effective_group_indent(current)
+
+          cond do
+            # Pure blank line inside an active keyword/arrow/attribute group: absorb.
+            String.trim(line) == "" and group_type != :other ->
+              [current ++ [line] | rest]
+
+            # Comment at same indent as an active keyword group: absorb.
+            other_line?(line) and group_type != :other and
+                get_indent(line) == group_indent ->
+              [current ++ [line] | rest]
+
+            # Same type and indent as current group: absorb.
+            same_group?(List.last(current), line) ->
+              [current ++ [line] | rest]
+
+            # Current group ends in blanks/comments; the new line may still
+            # belong to the same group if it matches the group's effective type.
+            group_type != :other and line_type(line) == group_type and
+                get_indent(line) == group_indent ->
+              [current ++ [line] | rest]
+
+            true ->
+              [[line] | groups]
           end
       end
     end)
     |> Enum.reverse()
+  end
+
+  # Type of the last non-:other line in the group (or :other if none).
+  defp effective_group_type(lines) do
+    lines
+    |> Enum.reverse()
+    |> Enum.find_value(:other, fn l ->
+      t = line_type(l)
+      if t != :other, do: t
+    end)
+  end
+
+  # Indent of the first non-:other line in the group (or 0 if none).
+  defp effective_group_indent(lines) do
+    case Enum.find(lines, fn l -> line_type(l) != :other end) do
+      nil  -> 0
+      line -> get_indent(line)
+    end
+  end
+
+  defp other_line?(line) do
+    line_type(line) == :other
   end
 
   defp same_group?(line_a, line_b) do
@@ -842,6 +888,7 @@ defmodule ExAlign do
   #   :arrow       ->  key => value
   #   :case_arm    ->  pattern -> body  (case/cond/fn arm, one-liner)
   #   :assignment  ->  var = value
+  #   :tuple_entry ->  {:atom, value, ...},?
   #   :other       ->  everything else (blank, comment, unrecognised)
   defp line_type(line) do
     stripped = String.trim_leading(line)
@@ -873,6 +920,10 @@ defmodule ExAlign do
           _ -> :other
         end
 
+      # Tuple entry starting with an atom:  {:atom, ...},?
+      Regex.match?(~r/^\{:\w+,\s+.+\}\s*,?\s*$/, stripped) ->
+        :tuple_entry
+
       # Simple variable assignment:  var = value  (not ==, !=, <=, >=, =>)
       Regex.match?(~r/^[a-z_]\w*\s+=(?![>=])\s+\S/, stripped) and
           not elixir_keyword?(stripped) ->
@@ -902,8 +953,23 @@ defmodule ExAlign do
   defp align_group([line]), do: [line]
 
   defp align_group(lines) do
-    type = line_type(hd(lines))
-    do_align(lines, type)
+    type = effective_group_type(lines)
+    # Separate :other lines (blanks/comments), align only the typed lines,
+    # then re-insert the :other lines at their original positions.
+    {typed_lines, other_positions} =
+      lines
+      |> Enum.with_index()
+      |> Enum.split_with(fn {line, _idx} -> line_type(line) != :other end)
+
+    aligned_typed = do_align(Enum.map(typed_lines, &elem(&1, 0)), type)
+
+    # Reconstruct full list in original order
+    typed_with_idx = Enum.zip(aligned_typed, Enum.map(typed_lines, &elem(&1, 1)))
+    other_with_idx = Enum.map(other_positions, fn {line, idx} -> {line, idx} end)
+
+    (typed_with_idx ++ other_with_idx)
+    |> Enum.sort_by(&elem(&1, 1))
+    |> Enum.map(&elem(&1, 0))
   end
 
   # Keyword list: align the space after the colon
@@ -936,6 +1002,55 @@ defmodule ExAlign do
   end
 
   # Variable assignment: align the = sign
+
+  defp do_align(lines, :tuple_entry) do
+    parsed =
+      Enum.map(lines, fn line ->
+        case Regex.run(~r/^(\s*)\{(.+)\}(,?)\s*$/, line) do
+          [_, indent, contents, trailing] ->
+            {:ok, indent, split_tuple_elements(contents), trailing}
+          _ ->
+            :error
+        end
+      end)
+
+    if Enum.all?(parsed, &match?({:ok, _, _, _}, &1)) do
+      all_elements = Enum.map(parsed, fn {:ok, _, elems, _} -> elems end)
+      max_cols = all_elements |> Enum.map(&length/1) |> Enum.max()
+
+      # Max width per column position across all rows
+      col_widths =
+        Enum.map(0..(max_cols - 2), fn col ->
+          all_elements
+          |> Enum.flat_map(fn elems ->
+            case Enum.at(elems, col) do
+              nil  -> []
+              elem -> [String.length(elem)]
+            end
+          end)
+          |> Enum.max()
+        end)
+
+      Enum.map(parsed, fn {:ok, indent, elems, trailing} ->
+        parts =
+          elems
+          |> Enum.with_index()
+          |> Enum.map(fn {elem, idx} ->
+            if idx < length(elems) - 1 do
+              max_w = Enum.at(col_widths, idx, String.length(elem))
+              pad   = String.duplicate(" ", max_w - String.length(elem))
+              "#{elem},#{pad}"
+            else
+              elem
+            end
+          end)
+
+        "#{indent}{#{Enum.join(parts, " ")}}#{trailing}"
+      end)
+    else
+      lines
+    end
+  end
 
   defp do_align(lines, :assignment) do
     parsed =
@@ -1144,4 +1259,30 @@ defmodule ExAlign do
   end
 
   defp do_align(lines, _), do: lines
+
+  # Split a tuple's content string by ", " at bracket depth 0.
+  defp split_tuple_elements(str) do
+    {elems, current, _depth} =
+      str
+      |> String.graphemes()
+      |> Enum.reduce({[], "", 0}, fn
+        ch, {elems, curr, depth} when ch in ["[", "{", "("] ->
+          {elems, curr <> ch, depth + 1}
+
+        ch, {elems, curr, depth} when ch in ["]", "}", ")"] ->
+          {elems, curr <> ch, depth - 1}
+
+        ",", {elems, curr, 0} ->
+          {elems ++ [curr], "", 0}
+
+        " ", {elems, "", 0} ->
+          # skip leading space after a split
+          {elems, "", 0}
+
+        ch, {elems, curr, depth} ->
+          {elems, curr <> ch, depth}
+      end)
+
+    elems ++ [current]
+  end
 end
