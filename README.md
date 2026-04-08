@@ -143,7 +143,16 @@ mix deps.get
 
 ## Usage
 
-Register the plugin in your project's `.formatter.exs`:
+Run the installer task to automatically create `.formatter.exs` in your project:
+
+```bash
+mix exalign.install
+```
+
+This creates `.formatter.exs` if it does not exist yet, or tells you how to
+update it manually if a custom one is already present.
+
+Alternatively, register the plugin in your project's `.formatter.exs` manually:
 
 ```elixir
 [
@@ -407,6 +416,8 @@ mix test
 
 Pull requests that change formatting behaviour without a corresponding fixture
 pair will not be accepted.
+
+Make sure that test coverage is above **90%**. Check with `make cover`. 
 
 ## Requirements
 
