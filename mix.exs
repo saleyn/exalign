@@ -4,7 +4,7 @@ defmodule ExAlign.MixProject do
   def project do
     [
       app: :exalign,
-      version: "0.1.2",
+      version: "0.1.3",
       elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
       description: "A Mix formatter plugin that column-aligns Elixir code",
