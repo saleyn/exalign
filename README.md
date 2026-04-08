@@ -186,6 +186,23 @@ exalign [options] <file|dir> [<file|dir> ...]
 Files are formatted in-place. Directories are walked recursively for
 `*.ex` and `*.exs` files.
 
+### Global configuration
+
+Default option values for the `exalign` executable can be set in
+`~/.config/exalign/.formatter.exs`. The file must evaluate to a keyword list
+containing any of the ExAlign-recognised keys. Command-line flags always take
+precedence over that file.
+
+Example `~/.config/exalign/.formatter.exs`:
+
+```elixir
+[
+  line_length:      120,
+  wrap_short_lines: true,
+  wrap_with:        :backslash
+]
+```
+
 ### Options
 
 | Flag | Default | Description |
@@ -224,6 +241,28 @@ make escript        # produces ./exalign
 
 Options are passed through `.formatter.exs` alongside the standard formatter
 options. Here is a full example with all options set explicitly:
+
+### Global configuration
+
+ExAlign reads default option values from `~/.config/exalign/.formatter.exs`
+when that file exists. Options found in the project-local `.formatter.exs`
+always take precedence over the global file, which in turn take precedence over
+built-in defaults.
+
+This is useful for enforcing personal preferences (e.g. `line_length: 120`)
+across all projects without touching each project's `.formatter.exs`.
+
+Example `~/.config/exalign/.formatter.exs`:
+
+```elixir
+[
+  line_length:      120,
+  wrap_short_lines: true,
+  wrap_with:        :backslash
+]
+```
+
+The file is silently ignored if it does not exist or cannot be evaluated.
 
 ```elixir
 # .formatter.exs

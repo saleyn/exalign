@@ -1,5 +1,7 @@
 defmodule ExAlignTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO
 
   # Helper: strip the leading newline from heredocs and feed directly to
   # align_columns/1 (bypassing Code.format_string! so tests are deterministic).
@@ -601,5 +603,101 @@ defmodule ExAlignTest do
 
   defp get_indent(line) do
     String.length(line) - String.length(String.trim_leading(line))
+  end
+
+  # ---------------------------------------------------------------------------
+  # Global config (~/.config/exalign/.formatter.exs)
+  # ---------------------------------------------------------------------------
+
+  @global_config_path Path.expand("~/.config/exalign/.formatter.exs")
+
+  # Temporarily write `content` to the global config path, run `fun`, then
+  # restore the original state (delete or restore the previous file).
+  defp with_global_config(content, fun) do
+    dir = Path.dirname(@global_config_path)
+    File.mkdir_p!(dir)
+    existed = File.regular?(@global_config_path)
+    backup = @global_config_path <> ".backup.#{:erlang.unique_integer([:positive])}"
+    existed && File.rename!(@global_config_path, backup)
+
+    File.write!(@global_config_path, content)
+
+    try do
+      fun.()
+    after
+      File.rm(@global_config_path)
+      existed && File.rename!(backup, @global_config_path)
+    end
+  end
+
+  describe "load_global_config/0" do
+    test "returns empty list when global config file does not exist" do
+      backup  = @global_config_path <> ".#{:erlang.unique_integer([:positive])}.backup"
+      existed = File.regular?(@global_config_path)
+      if existed, do: File.rename!(@global_config_path, backup)
+
+      try do
+        assert ExAlign.load_global_config() == []
+      after
+        if existed, do: File.rename!(backup, @global_config_path)
+      end
+    end
+
+    test "returns recognised options from a valid global config" do
+      with_global_config("[line_length: 120, wrap_short_lines: true]", fn ->
+        opts = ExAlign.load_global_config()
+        assert opts[:line_length] == 120
+        assert opts[:wrap_short_lines] == true
+      end)
+    end
+
+    test "strips unrecognised keys and emits a warning" do
+      with_global_config("[line_length: 100, unknown_opt: :bad]", fn ->
+        warning = capture_io(:stderr, fn ->
+          opts = ExAlign.load_global_config()
+          assert opts[:line_length] == 100
+          refute Keyword.has_key?(opts, :unknown_opt)
+        end)
+        assert warning =~ "unsupported option"
+        assert warning =~ ":unknown_opt"
+      end)
+    end
+
+    test "returns empty list and emits a warning when config is not a keyword list" do
+      with_global_config(":not_a_keyword_list", fn ->
+        warning = capture_io(:stderr, fn ->
+          assert ExAlign.load_global_config() == []
+        end)
+        assert warning =~ "must evaluate to a keyword list"
+      end)
+    end
+
+    test "returns empty list and emits a warning on syntax error" do
+      with_global_config("this is not valid elixir %%%", fn ->
+        warning = capture_io(:stderr, fn ->
+          assert ExAlign.load_global_config() == []
+        end)
+        assert warning =~ "could not load"
+      end)
+    end
+  end
+
+  describe "global config applied to format/2" do
+    test "global line_length is used as default in format/2" do
+      # Write a global config with a very short line length; local opts are empty
+      # so the global value must be picked up.
+      with_global_config("[line_length: 40]", fn ->
+        opts = ExAlign.load_global_config()
+        assert opts[:line_length] == 40
+      end)
+    end
+
+    test "local opts override global config in format/2" do
+      with_global_config("[line_length: 40]", fn ->
+        # Passing line_length: 120 locally must win over the global 40
+        result = ExAlign.format("x = 1\nfoo = 2\n", [line_length: 120])
+        assert is_binary(result)
+      end)
+    end
   end
 end

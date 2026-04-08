@@ -138,7 +138,9 @@ defmodule ExAlign.CLITest do
   test "--dry-run returns changed result without writing" do
     with_tmp_file(@unaligned, fn path ->
       output = capture_io(fn ->
-        assert run(["--dry-run", path]) == {:error, 1}
+        capture_io(:stderr, fn ->
+          assert run(["--dry-run", path]) == {:error, 1}
+        end)
       end)
       assert output =~ "---"
       assert File.read!(path) == @unaligned

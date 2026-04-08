@@ -17,6 +17,12 @@ defmodule ExAlign.CLI do
       -s, --silent          Suppress all stdout output
       -h, --help            Print this help
 
+  ## Global configuration
+
+  Default values for `--line-length`, `--wrap-short-lines`, and `--wrap-with`
+  can be set in `~/.config/exalign/.formatter.exs`. CLI flags always take
+  precedence over that file. See `ExAlign` module docs for the file format.
+
   ## Examples
 
       exalign lib/
@@ -99,7 +105,8 @@ defmodule ExAlign.CLI do
   # ---------------------------------------------------------------------------
 
   defp build_format_opts(opts) do
-    format_opts = []
+    # Start from global config defaults; CLI flags override them.
+    format_opts = ExAlign.load_global_config()
 
     format_opts =
       if opts[:line_length],

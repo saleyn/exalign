@@ -20,6 +20,22 @@ defmodule ExAlign do
       ]
 
   And add `exalign` to your `mix.exs` dependencies.
+
+  ## Global configuration
+
+  ExAlign reads default option values from `~/.config/exalign/.formatter.exs`
+  when that file exists. The file must evaluate to a keyword list containing any
+  ExAlign-recognised keys (`:line_length`, `:wrap_short_lines`, `:wrap_with`).
+  Options found in the project-local `.formatter.exs` always take precedence
+  over the global file.
+
+  Example `~/.config/exalign/.formatter.exs`:
+
+      [
+        line_length:      120,
+        wrap_short_lines: true,
+        wrap_with:        :backslash
+      ]
   """
 
   @behaviour Mix.Tasks.Format
@@ -41,6 +57,36 @@ defmodule ExAlign do
     [extensions: [".ex", ".exs"]]
   end
 
+  @doc """
+  Returns the ExAlign options loaded from the global config file
+  `~/.config/exalign/.formatter.exs`, or an empty list if the file does not
+  exist or cannot be evaluated.
+  """
+  @global_config_path Path.expand("~/.config/exalign/.formatter.exs")
+  @supported_global_options ~w[line_length wrap_short_lines wrap_with]a
+  @standard_formatter_options ~w[locals_without_parens inputs plugins subdirectories import_deps]a
+
+  def load_global_config do
+    path = @global_config_path
+
+    if File.regular?(path) do
+      {result, _bindings} = Code.eval_file(path)
+
+      if Keyword.keyword?(result) do
+        validate_options(result, "#{path}", @supported_global_options)
+      else
+        IO.warn("exalign: #{path} must evaluate to a keyword list — ignoring")
+        []
+      end
+    else
+      []
+    end
+  rescue
+    e ->
+      IO.warn("exalign: could not load #{@global_config_path}: #{Exception.message(e)} — ignoring")
+      []
+  end
+
   @impl Mix.Tasks.Format
   @doc """
   Formats the given Elixir source `contents` string, applying column alignment
@@ -50,6 +96,8 @@ defmodule ExAlign do
   keys `:wrap_short_lines`, `:wrap_with`, and `:line_length`.
   """
   def format(contents, opts) do
+    opts = Keyword.merge(load_global_config(), validate_options(opts, ".formatter.exs"))
+
     # Before running the standard formatter, detect any macro names that appear in
     # aligned groups (e.g. `field :name, opts`).  We add them to
     # `locals_without_parens` so Code.format_string! leaves them paren-free, and
@@ -79,6 +127,21 @@ defmodule ExAlign do
       |> align_case_blocks(line_length)
       |> align_columns()
     end
+  end
+
+  # Warn about unrecognised ExAlign options in `opts` (from `source`).
+  # When `filter_keys` is a list, only those keys are considered known and the
+  # returned keyword list is filtered to that set.  When `filter_keys` is `nil`
+  # (default), all standard formatter keys are also considered known and the
+  # full opts keyword list is returned unchanged.
+  defp validate_options(opts, source, filter_keys \\ nil) do
+    known = List.wrap(filter_keys) ++ @supported_global_options ++ @standard_formatter_options
+    unknown = opts |> Keyword.keys() |> Enum.reject(&(&1 in known))
+
+    unknown == [] ||
+      IO.warn("exalign: #{source} contains unsupported option(s): #{Enum.map_join(unknown, ", ", &inspect/1)}")
+
+    filter_keys && Keyword.take(opts, filter_keys ++ @supported_global_options) || opts
   end
 
   # Build Code.format_string! opts that prevent it from adding parens to or
