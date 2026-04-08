@@ -131,7 +131,7 @@ end
 
 ```elixir
 defp deps do
-  [{:ex_align, "~> 0.1"}]
+  [{:exalign, "~> 0.1"}]
 end
 ```
 

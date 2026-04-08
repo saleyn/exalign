@@ -11,7 +11,7 @@ defp elixirc_paths(:dev), do: ["lib", "dev"]
 defp elixirc_paths(_),    do: ["lib"]
 ```
 
-When another project adds `:ex_align` as a dependency, Mix compiles
+When another project adds `:exalign` as a dependency, Mix compiles
 only `lib/`, so none of the modules in `dev/` are ever compiled or made
 available there.
 
