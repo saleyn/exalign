@@ -3,24 +3,24 @@ defmodule ExAlign.MixProject do
 
   def project do
     [
-      app: :exalign,
-      version: "0.1.3",
-      elixir: "~> 1.13",
-      start_permanent: Mix.env() == :prod,
-      description: "A Mix formatter plugin that column-aligns Elixir code",
-      elixirc_paths: elixirc_paths(Mix.env()),
+      app:               :exalign,
+      version:           "0.1.3",
+      elixir:            "~> 1.13",
+      start_permanent:   Mix.env() == :prod,
+      description:       "A Mix formatter plugin that column-aligns Elixir code",
+      elixirc_paths:     elixirc_paths(Mix.env()),
       test_load_filters: [~r/_test\.exs$/],
-      package: package(),
-      deps: deps(),
-      test_coverage: [output: ".cover"],
-      escript: escript(),
-      docs: docs()
+      package:           package(),
+      deps:              deps(),
+      test_coverage:     [output: ".cover"],
+      escript:           escript(),
+      docs:              docs()
     ]
   end
 
   defp docs do
     [
-      main: "readme",
+      main:   "readme",
       extras: ["README.md", "LICENSE"]
     ]
   end
@@ -34,10 +34,10 @@ defmodule ExAlign.MixProject do
 
   defp package do
     [
-      files: ~w(lib dev .formatter.exs mix.* Makefile README* LICENSE*),
-      licenses: ["MIT"],
+      files:       ~w(lib dev .formatter.exs mix.* Makefile README* LICENSE*),
+      licenses:    ["MIT"],
       maintainers: ["Serge Aleynikov"],
-      links: %{"GitHub" => "https://github.com/saleyn/exalign"}
+      links:       %{"GitHub" => "https://github.com/saleyn/exalign"}
     ]
   end
 

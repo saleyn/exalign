@@ -31,13 +31,13 @@ defmodule ExAlign.CLI do
   """
 
   @switches [
-    line_length: :integer,
+    line_length:      :integer,
     wrap_short_lines: :boolean,
-    wrap_with: :string,
-    check: :boolean,
-    dry_run: :boolean,
-    silent: :boolean,
-    help: :boolean
+    wrap_with:        :string,
+    check:            :boolean,
+    dry_run:          :boolean,
+    silent:           :boolean,
+    help:             :boolean
   ]
 
   @aliases [h: :help, s: :silent]
@@ -61,23 +61,22 @@ defmodule ExAlign.CLI do
       invalid != [] ->
         for {flag, _} <- invalid, do: warn("Unknown option: #{flag}")
         {:error, 1}
-
       opts[:help] ->
         IO.puts(@moduledoc)
         :ok
-
       paths == [] ->
         IO.puts(@moduledoc)
         {:error, 1}
-
       true ->
         format_opts = build_format_opts(opts)
-        silent = opts[:silent] || false
-        mode = cond do
-          opts[:check]   -> :check
-          opts[:dry_run] -> :dry_run
-          true           -> :write
-        end
+        silent      = opts[:silent] || false
+
+        mode =
+          cond do
+            opts[:check]   -> :check
+            opts[:dry_run] -> :dry_run
+            true           -> :write
+          end
 
         paths
         |> Enum.flat_map(&collect_files/1)
@@ -89,12 +88,12 @@ defmodule ExAlign.CLI do
           end
         end)
         |> case do
-          {:ok, _} ->
+          {:ok,      _} ->
             :ok
           {:changed, n} ->
             silent || IO.puts(:stderr, "#{n} file(s) would be reformatted")
             {:error, 1}
-          {:error, _} ->
+          {:error,   _} ->
             {:error, 1}
         end
     end
@@ -110,17 +109,17 @@ defmodule ExAlign.CLI do
 
     format_opts =
       if opts[:line_length],
-        do: Keyword.put(format_opts, :line_length, opts[:line_length]),
+        do:   Keyword.put(format_opts, :line_length, opts[:line_length]),
         else: format_opts
 
     format_opts =
       if opts[:wrap_short_lines],
-        do: Keyword.put(format_opts, :wrap_short_lines, true),
+        do:   Keyword.put(format_opts, :wrap_short_lines, true),
         else: format_opts
 
     format_opts =
       if opts[:wrap_with],
-        do: Keyword.put(format_opts, :wrap_with, String.to_atom(opts[:wrap_with])),
+        do:   Keyword.put(format_opts, :wrap_with, String.to_atom(opts[:wrap_with])),
         else: format_opts
 
     format_opts
@@ -130,10 +129,8 @@ defmodule ExAlign.CLI do
     cond do
       File.dir?(path) ->
         Path.wildcard(Path.join(path, "**/*.{ex,exs}"))
-
       File.regular?(path) ->
         if String.ends_with?(path, [".ex", ".exs"]), do: [path], else: []
-
       true ->
         warn("Path not found: #{path}")
         []
@@ -141,22 +138,19 @@ defmodule ExAlign.CLI do
   end
 
   defp process_file(path, format_opts, mode, silent) do
-    original = File.read!(path)
+    original  = File.read!(path)
     formatted = ExAlign.format(original, format_opts)
 
     cond do
       formatted == original ->
         :ok
-
       mode == :check ->
         silent || IO.puts(:stderr, "would reformat: #{path}")
         :changed
-
       mode == :dry_run ->
         silent || IO.puts("--- #{path}")
         silent || IO.puts(formatted)
         :changed
-
       true ->
         File.write!(path, formatted)
         silent || IO.puts("reformatted: #{path}")

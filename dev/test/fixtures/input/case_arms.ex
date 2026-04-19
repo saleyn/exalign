@@ -20,6 +20,15 @@ defmodule Example.CaseArms do
     end
   end
 
+  def pipe_case(list) do
+    list
+    |> Enum.filter(&is_integer/1)
+    |> case do
+      [] -> :empty
+      int_list -> int_list
+    end
+  end
+
   def more_complex_case(text, components) do
     components
     |> Enum.reduce_while(%{}, fn component, acc ->

@@ -10,7 +10,9 @@ defmodule ExAlign.CLITest do
   defp run(args), do: ExAlign.CLI.run(args)
 
   defp with_tmp_file(content, ext \\ ".ex", fun) do
-    path = Path.join(System.tmp_dir!(), "exalign_test_#{:erlang.unique_integer([:positive])}#{ext}")
+    path =
+      Path.join(System.tmp_dir!(), "exalign_test_#{:erlang.unique_integer([:positive])}#{ext}")
+
     File.write!(path, content)
 
     try do
@@ -35,8 +37,8 @@ defmodule ExAlign.CLITest do
   @unaligned """
   defmodule M do
     def f do
-      x = 1
-      foo = "bar"
+      x              = 1
+      foo            = "bar"
       something_long = 42
     end
   end
@@ -50,16 +52,16 @@ defmodule ExAlign.CLITest do
   # ---------------------------------------------------------------------------
 
   test "prints usage and returns ok with --help" do
-    output = capture_io(fn ->
-      assert run(["--help"]) == :ok
-    end)
+    output =
+      capture_io(fn -> assert run(["--help"]) == :ok end)
+
     assert output =~ "exalign"
   end
 
   test "prints usage and returns error with no args" do
-    output = capture_io(fn ->
-      assert run([]) == {:error, 1}
-    end)
+    output =
+      capture_io(fn -> assert run([]) == {:error, 1} end)
+
     assert output =~ "exalign"
   end
 
@@ -69,9 +71,7 @@ defmodule ExAlign.CLITest do
 
   test "returns error for unknown flag" do
     capture_io(:stderr, fn ->
-      capture_io(fn ->
-        assert run(["--bogus-flag", "somefile.ex"]) == {:error, 1}
-      end)
+      capture_io(fn -> assert run(["--bogus-flag", "somefile.ex"]) == {:error, 1} end)
     end)
   end
 
@@ -80,15 +80,11 @@ defmodule ExAlign.CLITest do
   # ---------------------------------------------------------------------------
 
   test "ignores non-.ex files" do
-    with_tmp_file("hello", ".txt", fn path ->
-      assert run([path]) == :ok
-    end)
+    with_tmp_file("hello", ".txt", fn path -> assert run([path]) == :ok end)
   end
 
   test "warns and returns ok for missing path" do
-    capture_io(:stderr, fn ->
-      assert run(["/nonexistent/path/that/does/not/exist"]) == :ok
-    end)
+    capture_io(:stderr, fn -> assert run(["/nonexistent/path/that/does/not/exist"]) == :ok end)
   end
 
   # ---------------------------------------------------------------------------
@@ -105,9 +101,7 @@ defmodule ExAlign.CLITest do
   end
 
   test "returns ok when file is already formatted" do
-    with_tmp_file(@already_aligned, fn path ->
-      assert run([path]) == :ok
-    end)
+    with_tmp_file(@already_aligned, fn path -> assert run([path]) == :ok end)
   end
 
   # ---------------------------------------------------------------------------
@@ -115,16 +109,14 @@ defmodule ExAlign.CLITest do
   # ---------------------------------------------------------------------------
 
   test "--check returns ok when file needs no changes" do
-    with_tmp_file(@already_aligned, fn path ->
-      assert run(["--check", path]) == :ok
-    end)
+    with_tmp_file(@already_aligned, fn path -> assert run(["--check", path]) == :ok end)
   end
 
   test "--check returns error when file would change" do
     with_tmp_file(@unaligned, fn path ->
-      output = capture_io(:stderr, fn ->
-        assert run(["--check", path]) == {:error, 1}
-      end)
+      output =
+        capture_io(:stderr, fn -> assert run(["--check", path]) == {:error, 1} end)
+
       assert output =~ "would reformat" or output =~ "file(s) would be reformatted"
       # file must not be modified
       assert File.read!(path) == @unaligned
@@ -137,11 +129,11 @@ defmodule ExAlign.CLITest do
 
   test "--dry-run returns changed result without writing" do
     with_tmp_file(@unaligned, fn path ->
-      output = capture_io(fn ->
-        capture_io(:stderr, fn ->
-          assert run(["--dry-run", path]) == {:error, 1}
+      output =
+        capture_io(fn ->
+          capture_io(:stderr, fn -> assert run(["--dry-run", path]) == {:error, 1} end)
         end)
-      end)
+
       assert output =~ "---"
       assert File.read!(path) == @unaligned
     end)
@@ -149,9 +141,7 @@ defmodule ExAlign.CLITest do
 
   test "--dry-run returns ok when file needs no changes" do
     with_tmp_file(@already_aligned, fn path ->
-      capture_io(fn ->
-        assert run(["--dry-run", path]) == :ok
-      end)
+      capture_io(fn -> assert run(["--dry-run", path]) == :ok end)
     end)
   end
 
@@ -205,9 +195,7 @@ defmodule ExAlign.CLITest do
   end
 
   test "accepts --wrap-with do option" do
-    with_tmp_file(@already_aligned, fn path ->
-      assert run(["--wrap-with", "do", path]) == :ok
-    end)
+    with_tmp_file(@already_aligned, fn path -> assert run(["--wrap-with", "do", path]) == :ok end)
   end
 
   # ---------------------------------------------------------------------------
@@ -230,27 +218,27 @@ defmodule ExAlign.CLITest do
 
   test "--silent suppresses reformatted output in write mode" do
     with_tmp_file(@unaligned, fn path ->
-      output = capture_io(fn ->
-        assert run(["--silent", path]) == :ok
-      end)
+      output =
+        capture_io(fn -> assert run(["--silent", path]) == :ok end)
+
       assert output == ""
     end)
   end
 
   test "-s alias suppresses output" do
     with_tmp_file(@unaligned, fn path ->
-      output = capture_io(fn ->
-        assert run(["-s", path]) == :ok
-      end)
+      output =
+        capture_io(fn -> assert run(["-s", path]) == :ok end)
+
       assert output == ""
     end)
   end
 
   test "--silent suppresses dry-run stdout" do
     with_tmp_file(@unaligned, fn path ->
-      output = capture_io(fn ->
-        assert run(["--silent", "--dry-run", path]) == {:error, 1}
-      end)
+      output =
+        capture_io(fn -> assert run(["--silent", "--dry-run", path]) == {:error, 1} end)
+
       assert output == ""
       # file must not be written
       assert File.read!(path) == @unaligned
@@ -261,11 +249,11 @@ defmodule ExAlign.CLITest do
     with_tmp_file(@unaligned, fn path ->
       # The summary "N file(s) would be reformatted" goes to stderr from run/1
       # regardless of --silent; capture both devices to confirm no stdout leak.
-      stdout = capture_io(fn ->
-        capture_io(:stderr, fn ->
-          assert run(["--silent", "--check", path]) == {:error, 1}
+      stdout =
+        capture_io(fn ->
+          capture_io(:stderr, fn -> assert run(["--silent", "--check", path]) == {:error, 1} end)
         end)
-      end)
+
       assert stdout == ""
     end)
   end
@@ -280,12 +268,14 @@ defmodule ExAlign.CLITest do
     # Simplest approach: write a valid .ex file then delete it after we know
     # collect_files has seen it, but before process_file reads it.
     # We achieve this by writing a temp file, then chmod 000.
-    with_tmp_file("defmodule Bad do\nend\n", fn path ->
-      File.chmod!(path, 0o000)
-      stderr = capture_io(:stderr, fn ->
-        result = run([path])
-        assert result == {:error, 1}
-      end)
+    with_tmp_file("defmodule Bad do\nend\n", fn path -> File.chmod!(path, 0o000)
+
+      stderr =
+        capture_io(:stderr, fn ->
+          result = run([path])
+          assert result == {:error, 1}
+        end)
+
       assert stderr =~ "exalign:"
       File.chmod!(path, 0o644)
     end)

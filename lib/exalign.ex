@@ -491,18 +491,57 @@ defmodule ExAlign do
   defp is_continuation_do_line?(trimmed, acc, wrap_with) do
     stripped = String.trim_leading(trimmed)
 
-    cond do
-      # Pipe continuation — always split
-      String.match?(stripped, ~r/^\|>/) ->
-        true
+    # Check for block keyword with do at the end
+    case Regex.run(~r/(case|if|cond|with|for|receive|try|unless)\s+(.+?)\s+do$/, stripped) do
+      [_full, _keyword, content] ->
+        # If content has pipes or other complex expressions, allow wrapping
+        String.contains?(content, "|>")
 
-      # Last clause of a `with` block: contains ` <- ` and a `with` ancestor exists
-      wrap_with in [true, :backslash] and String.contains?(trimmed, " <- ") ->
-        is_with_clause_line?(trimmed, acc)
+      nil ->
+        # Not a block keyword with do, check other patterns
+        cond do
+          # Pipe continuation — check if it's part of a complex block
+          String.match?(stripped, ~r/^\|>/) ->
+            # Is this a with clause? (always extract)
+            if is_with_clause_line?(trimmed, acc) do
+              true
+            else
+              # Is this a pipe continuation of case/if/cond/etc with multiple lines?
+              # If the parent block keyword is on a separate line, it's multi-line, so extract
+              has_multiline_block_parent?(acc)
+            end
 
-      true ->
-        false
+          # Last clause of a `with` block: contains ` <- ` and a `with` ancestor exists
+          wrap_with in [true, :backslash] and String.contains?(trimmed, " <- ") ->
+            is_with_clause_line?(trimmed, acc)
+
+          true ->
+            false
+        end
     end
+  end
+
+  # Check if this line is part of a multi-line case/if/cond/etc block
+  # by looking for a parent block keyword (case/if/cond/etc) at lesser indentation
+  # that doesn't have 'do' on the same line
+  defp has_multiline_block_parent?(acc) do
+    # Determine current indentation from the most recent accumulated line
+    current_line_indent =
+      case acc do
+        [tail | _] -> get_indent(tail)
+        [] -> 0
+      end
+
+    # Look through accumulated lines for a parent block keyword
+    Enum.any?(acc, fn line ->
+      stripped = String.trim_leading(line)
+      line_indent = get_indent(line)
+
+      # A parent must be at lesser indentation AND be a block keyword without do on same line
+      line_indent < current_line_indent and
+        Regex.match?(~r/^(case|if|cond|for|receive|try|unless)\b/, stripped) and
+        not String.ends_with?(String.trim_trailing(line), " do")
+    end)
   end
 
   defp is_with_clause_line?(trimmed, acc) do

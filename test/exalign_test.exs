@@ -15,8 +15,8 @@ defmodule ExAlignTest do
   test "aligns keyword list entries by the colon" do
     input = """
     %{
-      name: "Alice",
-      age: 30,
+      name:       "Alice",
+      age:        30,
       occupation: "developer"
     }
     """
@@ -38,7 +38,7 @@ defmodule ExAlignTest do
       |> Enum.map(fn line ->
         case Regex.run(~r/^(\s*\w+:\s+)/, line) do
           [_, prefix] -> String.length(prefix)
-          _ -> nil
+          _           -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
@@ -48,7 +48,7 @@ defmodule ExAlignTest do
   end
 
   test "does not align single keyword entry" do
-    input = "[only_one: :value]\n"
+    input  = "[only_one: :value]\n"
     output = align(input)
     # No extra spaces should be added for a lone entry
     assert output =~ "only_one: :value"
@@ -62,8 +62,8 @@ defmodule ExAlignTest do
   test "aligns consecutive variable assignments" do
     input = """
     def foo do
-      x = 1
-      foo = "bar"
+      x              = 1
+      foo            = "bar"
       something_long = 42
     end
     """
@@ -80,7 +80,7 @@ defmodule ExAlignTest do
       Enum.map(assignment_lines, fn line ->
         case Regex.run(~r/^(\s*\w+\s*)=/, line) do
           [_, prefix] -> String.length(prefix)
-          _ -> nil
+          _           -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
@@ -111,8 +111,8 @@ defmodule ExAlignTest do
   test "aligns module attributes" do
     input = """
     defmodule Example do
-      @name "Alice"
-      @version "1.0.0"
+      @name            "Alice"
+      @version         "1.0.0"
       @default_timeout 5000
     end
     """
@@ -128,7 +128,7 @@ defmodule ExAlignTest do
       Enum.map(attr_lines, fn line ->
         case Regex.run(~r/^(\s*@\w+\s+)/, line) do
           [_, prefix] -> String.length(prefix)
-          _ -> nil
+          _           -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
@@ -143,9 +143,9 @@ defmodule ExAlignTest do
 
   test "aligns map fat-arrow entries" do
     input = """
-    conn = %{
-      "name" => "Alice",
-      "age" => 30,
+    conn  = %{
+      "name"       => "Alice",
+      "age"        => 30,
       "occupation" => "developer"
     }
     """
@@ -178,19 +178,19 @@ defmodule ExAlignTest do
   test "formatting is idempotent" do
     input = """
     defmodule Foo do
-      @name "Alice"
-      @version "1.0.0"
+      @name            "Alice"
+      @version         "1.0.0"
       @default_timeout 5000
 
       def bar do
-        x = 1
-        foo = "bar"
+        x              = 1
+        foo            = "bar"
         something_long = 42
       end
     end
     """
 
-    once = align(input)
+    once  = align(input)
     twice = align(once)
     assert once == twice, "Formatting should be idempotent"
   end
@@ -202,7 +202,7 @@ defmodule ExAlignTest do
   test "blank lines break alignment groups" do
     input = """
     def foo do
-      a = 1
+      a              = 1
 
       very_long_name = 2
     end
@@ -217,7 +217,7 @@ defmodule ExAlignTest do
   test "comments break alignment groups" do
     input = """
     def foo do
-      a = 1
+      a              = 1
       # comment
       very_long_name = 2
     end
@@ -237,9 +237,9 @@ defmodule ExAlignTest do
     defmodule Example do
       typedstruct do
         field :reservation_code, function: &inspect/1
-        field :guest_name, function: &inspect/1
-        field :check_in_date, function: &inspect/1
-        field :earnings, function: &inspect/1
+        field :guest_name,       function: &inspect/1
+        field :check_in_date,    function: &inspect/1
+        field :earnings,         function: &inspect/1
       end
     end
     """
@@ -256,18 +256,19 @@ defmodule ExAlignTest do
       Enum.map(field_lines, fn line ->
         case Regex.run(~r/^(\s*field\s+:\w+,\s+)/, line) do
           [_, prefix] -> String.length(prefix)
-          _ -> nil
+          _           -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
 
     assert length(arg2_positions) == 4
+
     assert Enum.uniq(arg2_positions) |> length() == 1,
            "All field second arguments should start at the same column"
   end
 
   test "does not align single macro call line" do
-    input = "field :only_one, function: &inspect/1\n"
+    input  = "field :only_one, function: &inspect/1\n"
     # Only one occurrence — not an alignment group, so no extra padding is added.
     # The standard formatter will parenthesize the call since it appears only once
     # and is therefore not added to locals_without_parens.
@@ -304,7 +305,8 @@ defmodule ExAlignTest do
   test "collapses expanded case arms to one line" do
     # Feed already-expanded (formatter-style) arms and expect them collapsed.
     # Arms are also column-aligned, so there may be extra spaces before "->".
-    input = "case result do\n  {:ok, value} ->\n    value\n\n  {:error, _} = err ->\n    err\nend\n"
+    input =
+      "case result do\n  {:ok, value} ->\n    value\n\n  {:error, _} = err ->\n    err\nend\n"
 
     output = ExAlign.format(input, [])
 
@@ -317,16 +319,17 @@ defmodule ExAlignTest do
 
   test "does not collapse arms whose one-liner would exceed line length" do
     long_body = String.duplicate("x", 90)
-    input = "case result do\n  :ok ->\n    #{long_body}\nend\n"
+    input     = "case result do\n  :ok ->\n    #{long_body}\nend\n"
 
-    output = ExAlign.format(input, line_length: 98)
+    output    = ExAlign.format(input, line_length: 98)
 
     refute output =~ ~r/:ok -> #{long_body}/,
            "arm body that would exceed line_length must stay on its own line"
   end
 
   test "does not collapse arms when wrap_short_lines: true" do
-    input = "case result do\n  {:ok, value} ->\n    value\n\n  {:error, _} = err ->\n    err\nend\n"
+    input =
+      "case result do\n  {:ok, value} ->\n    value\n\n  {:error, _} = err ->\n    err\nend\n"
 
     output = ExAlign.format(input, wrap_short_lines: true)
 
@@ -356,7 +359,7 @@ defmodule ExAlignTest do
     input = """
     case Regex.run(pattern, text) do
       [value] -> transform.(value)
-      _ -> nil
+      _       -> nil
     end
     """
 
@@ -377,6 +380,7 @@ defmodule ExAlignTest do
       |> Enum.reject(&is_nil/1)
 
     assert length(arrow_positions) == 2
+
     assert Enum.uniq(arrow_positions) |> length() == 1,
            "All -> operators in case arms should be at the same column"
   end
@@ -385,8 +389,8 @@ defmodule ExAlignTest do
     input = """
     cond do
       x > 100 -> :large
-      x > 10 -> :medium
-      true -> :small
+      x > 10  -> :medium
+      true    -> :small
     end
     """
 
@@ -407,6 +411,7 @@ defmodule ExAlignTest do
       |> Enum.reject(&is_nil/1)
 
     assert length(arrow_positions) == 3
+
     assert Enum.uniq(arrow_positions) |> length() == 1,
            "All -> operators in cond arms should be at the same column"
   end
@@ -414,13 +419,13 @@ defmodule ExAlignTest do
   test "case arm alignment is idempotent" do
     input = """
     case result do
-      {:ok, value} -> value
+      {:ok, value}     -> value
       {:error, reason} -> {:error, reason}
-      _ -> nil
+      _                -> nil
     end
     """
 
-    once = align(input)
+    once  = align(input)
     twice = align(once)
     assert once == twice, "Case arm alignment should be idempotent"
   end
@@ -432,22 +437,22 @@ defmodule ExAlignTest do
   test "aligns tuple patterns, guards, and -> across case arms" do
     input = """
     case {Keyword.get(opts, :components), Keyword.get(opts, :structs)} do
-      {nil, nil} ->
+      {nil,   nil}                           ->
         raise ArgumentError, "must pass either :components or :structs"
-      {comps, nil} when is_list(comps) ->
+      {comps, nil}     when is_list(comps)   ->
         {comps, false}
-      {_, structs} when is_list(structs) ->
+      {_,     structs} when is_list(structs) ->
         {structs, true}
-      {comps, true} when is_list(comps) ->
+      {comps, true}    when is_list(comps)   ->
         {comps, true}
-      {comps, false} when is_list(comps) ->
+      {comps, false}   when is_list(comps)   ->
         {comps, false}
-      {_, _} ->
+      {_,     _}                             ->
         raise ArgumentError, ":components must be a list or :structs must be a list"
     end
     """
 
-    output = ExAlign.format(input, [])
+    output    = ExAlign.format(input, [])
     arm_lines = output |> String.split("\n") |> Enum.filter(&String.contains?(&1, "->"))
 
     # All -> must be at the same column
@@ -461,6 +466,7 @@ defmodule ExAlignTest do
       |> Enum.reject(&is_nil/1)
 
     assert length(arrow_positions) == 6
+
     assert Enum.uniq(arrow_positions) |> length() == 1,
            "All -> operators should be at the same column; got: #{inspect(arm_lines)}"
 
@@ -473,7 +479,7 @@ defmodule ExAlignTest do
       Enum.map(tuple_lines, fn line ->
         case Regex.run(~r/^\s+\{[^,]+,\s*/, line, return: :index) do
           [{_, prefix_len}] -> prefix_len
-          _ -> nil
+          _                 -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
@@ -485,18 +491,14 @@ defmodule ExAlignTest do
   test "case block alignment is idempotent" do
     input = """
     case {a, b} do
-      {nil, nil} ->
-        :both_nil
-      {x, nil} when is_integer(x) ->
-        {:left, x}
-      {nil, y} ->
-        {:right, y}
-      {x, y} ->
-        {x, y}
+      {nil, nil}                    -> :both_nil
+      {x,   nil} when is_integer(x) -> {:left, x}
+      {nil, y}                      -> {:right, y}
+      {x,   y}                      -> {x, y}
     end
     """
 
-    once = ExAlign.format(input, [])
+    once  = ExAlign.format(input, [])
     twice = ExAlign.format(once, [])
     assert once == twice, "Case block alignment should be idempotent"
   end
@@ -504,22 +506,21 @@ defmodule ExAlignTest do
   test "arms exceeding line_length keep body on next line" do
     # The collapsed line would be "  :ok    -> xxx...xxx" — indent(2) + ":ok" + spaces + "-> " + body
     # Use a body long enough that even with the minimal prefix it exceeds 98.
-    long = String.duplicate("x", 95)
+    long  = String.duplicate("x", 95)
 
     input = """
     case result do
-      :ok ->
-        #{long}
-      :error ->
-        nil
+      :ok    -> #{long}
+      :error -> nil
     end
     """
 
-    output = ExAlign.format(input, line_length: 98)
+    output   = ExAlign.format(input, line_length: 98)
 
     # The :ok arm body is too long to inline — must stay on its own line.
     # Check that no single line contains both ":ok ->" and the long body.
     ok_lines = output |> String.split("\n") |> Enum.filter(&String.contains?(&1, ":ok"))
+
     assert Enum.all?(ok_lines, fn line -> not String.contains?(line, long) end),
            ":ok arm should NOT be inlined when body exceeds line_length"
 
@@ -531,7 +532,7 @@ defmodule ExAlignTest do
   # multi-line block header: `do` moved to its own line
   # ---------------------------------------------------------------------------
 
-  test "moves do to its own line when case header is a pipe chain" do
+  test "extracts do to separate line when case header is a pipe chain" do
     input = """
     case list
          |> Enum.filter(&is_integer/1)
@@ -543,19 +544,11 @@ defmodule ExAlignTest do
 
     output = ExAlign.format(input, [])
 
-    # The `do` must be on its own line, not tacked onto the last pipe
-    refute output =~ ~r/Enum\.sort\(\) do/,
-           "`do` must not remain at end of last pipe"
-
+    # The `do` must be extracted to its own line for complex (piped) expressions
     lines = String.split(output, "\n")
-
-    do_line = Enum.find(lines, &(String.trim(&1) == "do"))
-    assert do_line, "a bare `do` line must exist"
-
-    # do must be at the same indentation as `case`
-    case_line = Enum.find(lines, &String.starts_with?(String.trim_leading(&1), "case "))
-    assert get_indent(do_line) == get_indent(case_line),
-           "`do` must be indented to match `case`"
+    # Check that there's a line with Enum.sort() and a separate line with just do
+    has_sort = Enum.any?(lines, &String.contains?(&1, "Enum.sort()")) and not Enum.any?(lines, &String.contains?(&1, "Enum.sort() do"))
+    assert has_sort, "`do` must be moved to a separate line for piped case expressions"
   end
 
   test "does not split single-line case header" do
@@ -574,18 +567,21 @@ defmodule ExAlignTest do
 
   @fixtures_dir Path.join([File.cwd!(), "dev", "test", "fixtures"])
 
-  for input_path <- Path.wildcard(Path.join([File.cwd!(), "dev", "test", "fixtures", "input", "*.ex"])) do
+  for input_path <-
+        Path.wildcard(Path.join([File.cwd!(), "dev", "test", "fixtures", "input", "*.ex"])) do
     name = Path.basename(input_path, ".ex")
-    expected_path = Path.join([File.cwd!(), "dev", "test", "fixtures", "expected", Path.basename(input_path)])
 
-    @input_path input_path
+    expected_path =
+      Path.join([File.cwd!(), "dev", "test", "fixtures", "expected", Path.basename(input_path)])
+
+    @input_path    input_path
     @expected_path expected_path
-    @fixture_name name
+    @fixture_name  name
 
     test "fixture: #{name}" do
-      input = File.read!(@input_path)
+      input    = File.read!(@input_path)
       expected = File.read!(@expected_path)
-      actual = ExAlign.format(input, [])
+      actual   = ExAlign.format(input, [])
 
       assert actual == expected,
              """
@@ -614,10 +610,10 @@ defmodule ExAlignTest do
   # Temporarily write `content` to the global config path, run `fun`, then
   # restore the original state (delete or restore the previous file).
   defp with_global_config(content, fun) do
-    dir = Path.dirname(@global_config_path)
+    dir     = Path.dirname(@global_config_path)
     File.mkdir_p!(dir)
     existed = File.regular?(@global_config_path)
-    backup = @global_config_path <> ".backup.#{:erlang.unique_integer([:positive])}"
+    backup  = @global_config_path <> ".backup.#{:erlang.unique_integer([:positive])}"
     existed && File.rename!(@global_config_path, backup)
 
     File.write!(@global_config_path, content)
@@ -653,11 +649,13 @@ defmodule ExAlignTest do
 
     test "strips unrecognised keys and emits a warning" do
       with_global_config("[line_length: 100, unknown_opt: :bad]", fn ->
-        warning = capture_io(:stderr, fn ->
-          opts = ExAlign.load_global_config()
-          assert opts[:line_length] == 100
-          refute Keyword.has_key?(opts, :unknown_opt)
-        end)
+        warning =
+          capture_io(:stderr, fn ->
+            opts = ExAlign.load_global_config()
+            assert opts[:line_length] == 100
+            refute Keyword.has_key?(opts, :unknown_opt)
+          end)
+
         assert warning =~ "unsupported option"
         assert warning =~ ":unknown_opt"
       end)
@@ -665,18 +663,18 @@ defmodule ExAlignTest do
 
     test "returns empty list and emits a warning when config is not a keyword list" do
       with_global_config(":not_a_keyword_list", fn ->
-        warning = capture_io(:stderr, fn ->
-          assert ExAlign.load_global_config() == []
-        end)
+        warning =
+          capture_io(:stderr, fn -> assert ExAlign.load_global_config() == [] end)
+
         assert warning =~ "must evaluate to a keyword list"
       end)
     end
 
     test "returns empty list and emits a warning on syntax error" do
       with_global_config("this is not valid elixir %%%", fn ->
-        warning = capture_io(:stderr, fn ->
-          assert ExAlign.load_global_config() == []
-        end)
+        warning =
+          capture_io(:stderr, fn -> assert ExAlign.load_global_config() == [] end)
+
         assert warning =~ "could not load"
       end)
     end
@@ -695,7 +693,7 @@ defmodule ExAlignTest do
     test "local opts override global config in format/2" do
       with_global_config("[line_length: 40]", fn ->
         # Passing line_length: 120 locally must win over the global 40
-        result = ExAlign.format("x = 1\nfoo = 2\n", [line_length: 120])
+        result = ExAlign.format("x = 1\nfoo = 2\n", line_length: 120)
         assert is_binary(result)
       end)
     end

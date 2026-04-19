@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Exalign.Install do
-  @shortdoc "Create or update .formatter.exs to use ExAlign"
+  @shortdoc  "Create or update .formatter.exs to use ExAlign"
   @moduledoc """
   Creates or updates `.formatter.exs` in the current project to register
   `ExAlign` as a formatter plugin.
@@ -21,7 +21,7 @@ defmodule Mix.Tasks.Exalign.Install do
 
   use Mix.Task
 
-  @formatter_file ".formatter.exs"
+  @formatter_file  ".formatter.exs"
 
   @default_content """
   [
