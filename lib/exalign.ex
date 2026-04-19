@@ -65,6 +65,7 @@ defmodule ExAlign do
   @global_config_path Path.expand("~/.config/exalign/.formatter.exs")
   @supported_global_options ~w[line_length wrap_short_lines wrap_with]a
   @standard_formatter_options ~w[locals_without_parens inputs plugins subdirectories import_deps]a
+  @ignored_options            ~w[extension file sigils]a
 
   def load_global_config do
     path = @global_config_path
@@ -136,7 +137,7 @@ defmodule ExAlign do
   # full opts keyword list is returned unchanged.
   defp validate_options(opts, source, filter_keys \\ nil) do
     known = List.wrap(filter_keys) ++ @supported_global_options ++ @standard_formatter_options
-    unknown = opts |> Keyword.keys() |> Enum.reject(&(&1 in known))
+    unknown = opts |> Keyword.keys() |> Enum.reject(&(&1 in @ignored_options)) |> Enum.reject(&(&1 in known))
 
     unknown == [] ||
       IO.warn("exalign: #{source} contains unsupported option(s): #{Enum.map_join(unknown, ", ", &inspect/1)}")
