@@ -11,8 +11,7 @@ defmodule MixProject do
       test_paths:      ["test"],
       package:         package(),
 
-      # Docs
-      name:            "Some App",
+      name:            "Some App",  # Docs
       homepage_url:    "http://github.com/some/repo",
       authors:         ["Some Author"],
       docs:            [
@@ -37,8 +36,7 @@ defmodule MixProject do
 
   defp package() do
     [
-      # These are the default files included in the package
-      licenses: ["MIT"],
+      licenses: ["MIT"],  # These are the default files included in the package
       links:    %{"GitHub" => "https://github.com/some/repo"}
     ]
   end

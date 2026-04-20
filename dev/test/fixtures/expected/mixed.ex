@@ -8,7 +8,7 @@ defmodule Example.Mixed do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     retries = Keyword.get(opts, :retries, @max_retries)
     headers = Keyword.get(opts, :headers, [])
-    body    = Keyword.get(opts, :body,    nil)
+    body    = Keyword.get(opts, :body, nil)
 
     %{
       method:  method,
