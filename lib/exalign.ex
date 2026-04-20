@@ -1024,7 +1024,7 @@ defmodule ExAlign do
         end
 
       # Tuple entry starting with an atom:  {:atom, ...},?
-      Regex.match?(~r/^\{:\w+,\s+.+\}\s*,?\s*$/, stripped) ->
+      Regex.match?(~r/^\{:\w+[?!]?,\s+.+\}\s*,?\s*$/, stripped) ->
         :tuple_entry
 
       # Simple variable assignment:  var = value  (not ==, !=, <=, >=, =>)
