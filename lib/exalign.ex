@@ -986,13 +986,14 @@ defmodule ExAlign do
   # ---------------------------------------------------------------------------
 
   # Returns the alignment "type" for a line:
-  #   :attribute   ->  @attr value
-  #   :keyword     ->  key: value  (keyword list / struct field)
-  #   :arrow       ->  key => value
-  #   :case_arm    ->  pattern -> body  (case/cond/fn arm, one-liner)
-  #   :assignment  ->  var = value
-  #   :tuple_entry ->  {:atom, value, ...},?
-  #   :other       ->  everything else (blank, comment, unrecognised)
+  #   :attribute        ->  @attr value
+  #   :keyword          ->  key: value  (keyword list / struct field)
+  #   :arrow            ->  key => value
+  #   :case_arm         ->  pattern -> body  (case/cond/fn arm, one-liner)
+  #   :assignment       ->  var = value
+  #   :tuple_entry      ->  {:atom, value, ...},?
+  #   :function_clause  ->  def/defp name(...), do: value
+  #   :other            ->  everything else (blank, comment, unrecognised)
   defp line_type(line) do
     stripped = String.trim_leading(line)
 
@@ -1003,6 +1004,10 @@ defmodule ExAlign do
       # Module attribute with a value (not a call like @spec, which uses parens)
       Regex.match?(~r/^@\w+\s+(?!\()/, stripped) ->
         :attribute
+
+      # Function clause with do: body on same line: def/defp name(...), do: value
+      Regex.match?(~r/^(def|defp|defmacro|defmacrop)\s+\w+.*,\s*do:\s+\S/, stripped) ->
+        :function_clause
 
       # Keyword list / struct literal entry:  some_key: value
       Regex.match?(~r/^[a-z_]\w*[?!]?:\s+\S/, stripped) ->
@@ -1355,6 +1360,33 @@ defmodule ExAlign do
       Enum.map(parsed, fn {indent, pattern, body} ->
         pad = String.duplicate(" ", max_len - String.length(pattern) + 1)
         "#{indent}#{pattern}#{pad}-> #{body}"
+      end)
+    else
+      lines
+    end
+  end
+
+  # Function clause with do: body: align the do: keyword
+  #   before:  def elixirc_paths(:prod), do: ["lib"]
+  #            def elixirc_paths(_), do: ["lib", "examples"]
+  #
+  #   after:   def elixirc_paths(:prod), do: ["lib"]
+  #            def elixirc_paths(_),     do: ["lib", "examples"]
+  defp do_align(lines, :function_clause) do
+    parsed =
+      Enum.map(lines, fn line ->
+        case Regex.run(~r/^(\s*)(.*?),\s*do:\s+(.*)$/, line) do
+          [_, indent, prefix, value] -> {indent, String.trim_trailing(prefix), value}
+          _ -> nil
+        end
+      end)
+
+    if Enum.all?(parsed, & &1) do
+      max_len = parsed |> Enum.map(fn {_, prefix, _} -> String.length(prefix) end) |> Enum.max()
+
+      Enum.map(parsed, fn {indent, prefix, value} ->
+        pad = String.duplicate(" ", max_len - String.length(prefix) + 1)
+        "#{indent}#{prefix},#{pad}do: #{value}"
       end)
     else
       lines

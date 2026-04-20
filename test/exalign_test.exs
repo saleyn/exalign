@@ -597,10 +597,6 @@ defmodule ExAlignTest do
 
   _ = @fixtures_dir
 
-  defp get_indent(line) do
-    String.length(line) - String.length(String.trim_leading(line))
-  end
-
   # ---------------------------------------------------------------------------
   # Global config (~/.config/exalign/.formatter.exs)
   # ---------------------------------------------------------------------------

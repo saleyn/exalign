@@ -2,7 +2,7 @@
 
 all: compile escript
 
-compile:
+compile: remove-crushdump
 	mix compile --warnings-as-errors
 
 help:
@@ -20,6 +20,9 @@ help:
 
 test:
 	mix test
+
+remove-crushdump:
+	@rm -f erl_crash.dump
 
 cover:
 	@mix test --cover | \
@@ -41,7 +44,7 @@ escript:
 
 clean:
 	mix clean
-	rm -rf _build deps .cover exalign
+	rm -rf _build deps .cover exalign erl_crash.dump
 
 doc docs:
 	mix docs
