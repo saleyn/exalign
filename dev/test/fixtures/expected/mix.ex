@@ -36,7 +36,8 @@ defmodule MixProject do
 
   defp package() do
     [
-      licenses: ["MIT"],  # These are the default files included in the package
+      # These are the default files included in the package
+      licenses: ["MIT"],
       links:    %{"GitHub" => "https://github.com/some/repo"}
     ]
   end

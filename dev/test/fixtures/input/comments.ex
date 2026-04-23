@@ -5,4 +5,22 @@ defmodule Comments do
     matches3 = Atree.match(tree, %{"value" => 25})  # int64
     matches4 = Atree.match(tree, %{"value" => 60}) # This is a very long comment that doesn't fit on one line
   end
+
+  def list do
+    [
+      test_coverage:   [
+        output:         ".cover",
+        ignore_modules: [Atree.Native],
+        # allow_failure: true,
+        summary:        [threshold: 90]
+      ],
+
+      test_coverage:   [
+        output:         ".cover",
+        ignore_modules: [Atree.Native],
+        summary:        [threshold: 90],
+        # allow_failure: true
+      ],
+    ]
+  end
 end

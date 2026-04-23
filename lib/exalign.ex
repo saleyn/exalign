@@ -63,7 +63,7 @@ defmodule ExAlign do
   exist or cannot be evaluated.
   """
   @global_config_path Path.expand("~/.config/exalign/.formatter.exs")
-  @supported_global_options ~w[line_length wrap_short_lines wrap_with]a
+  @supported_global_options ~w[line_length wrap_short_lines wrap_with eol_at_eof]a
   @standard_formatter_options ~w[locals_without_parens inputs plugins subdirectories import_deps]a
   @ignored_options            ~w[extension file sigils]a
 
@@ -94,7 +94,12 @@ defmodule ExAlign do
   on top of the standard `Code.format_string!` pass.
 
   `opts` may include any standard formatter options plus the ExAlign-specific
-  keys `:wrap_short_lines`, `:wrap_with`, and `:line_length`.
+  keys `:wrap_short_lines`, `:wrap_with`, `:line_length`, and `:eol_at_eof`.
+
+  `:eol_at_eof` can be:
+    - `:remove` - remove trailing newline at end of file
+    - `:add` - add trailing newline if not present
+    - `nil` (default) - leave end-of-file newline untouched
   """
   def format(contents, opts) do
     opts = Keyword.merge(load_global_config(), validate_options(opts, ".formatter.exs"))
@@ -116,20 +121,28 @@ defmodule ExAlign do
     # Reattach comments that Code.format_string! moved to their own lines
     formatted = reattach_formatter_comments(formatted, line_length)
 
-    if Keyword.get(opts, :wrap_short_lines, false) do
-      formatted
-      |> extract_do_to_own_line(opts)
-      |> realign_pipe_chains()
-      |> align_case_blocks(line_length)
-      |> align_columns(line_length)
-    else
-      formatted
-      |> collapse_one_liners(opts)
-      |> extract_do_to_own_line(opts)
-      |> realign_pipe_chains()
-      |> collapse_one_liners(opts)
-      |> align_case_blocks(line_length)
-      |> align_columns(line_length)
+    result =
+      if Keyword.get(opts, :wrap_short_lines, false) do
+        formatted
+        |> extract_do_to_own_line(opts)
+        |> realign_pipe_chains()
+        |> align_case_blocks(line_length)
+        |> align_columns(line_length)
+      else
+        formatted
+        |> collapse_one_liners(opts)
+        |> extract_do_to_own_line(opts)
+        |> realign_pipe_chains()
+        |> collapse_one_liners(opts)
+        |> align_case_blocks(line_length)
+        |> align_columns(line_length)
+      end
+
+    # Handle end-of-file newline based on eol_at_eof setting
+    case Keyword.get(opts, :eol_at_eof, nil) do
+      :remove -> String.trim_trailing(result, "\n")
+      :add    -> String.ends_with?(result, "\n") && result || result <> "\n"
+      nil     -> result
     end
   end
 
@@ -442,13 +455,19 @@ defmodule ExAlign do
     # Only attach if indentation matches
     if code_indent == comment_indent do
       # Check if code line is an assignment, attribute, or keyword entry
-      is_attachable =
-        Regex.match?(~r/^\w+\s*=(?![>=])/, code_stripped) or
-          Regex.match?(~r/^@\w+\s+/, code_stripped) or
-          Regex.match?(~r/^[a-z_]\w*[?!]?:\s+/, code_stripped) or
-          Regex.match?(~r/^\S.*?\s+=>\s+/, code_stripped)
+      is_assignment = Regex.match?(~r/^\w+\s*=(?![>=])/, code_stripped)
+      is_attribute = Regex.match?(~r/^@\w+\s+/, code_stripped)
+      is_keyword_entry = Regex.match?(~r/^[a-z_]\w*[?!]?:\s+/, code_stripped)
+      is_map_entry = Regex.match?(~r/^\S.*?\s+=>\s+/, code_stripped)
 
-      if is_attachable do
+      is_attachable = is_assignment or is_attribute or is_keyword_entry or is_map_entry
+
+      # Don't attach comments to keyword entries with closing brackets (complex structures)
+      # as these likely contain nested data structures where comments should stay separate
+      skip_due_to_complex_keyword =
+        is_keyword_entry and String.contains?(code_stripped, ["]", "}", ")"])
+
+      if is_attachable and not skip_due_to_complex_keyword do
         {:attach, "#{String.trim_trailing(code_line)}  #{comment_stripped}"}
       else
         :skip

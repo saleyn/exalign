@@ -237,6 +237,7 @@ options. Here is a full example with all options set explicitly:
   line_length:           98,
   wrap_short_lines:      false,
   wrap_with:             :backslash,
+  eol_at_eof:            nil,
   locals_without_parens: [field: :*, validate: 2]
 ]
 ```
@@ -254,7 +255,7 @@ This is useful for enforcing personal preferences (e.g. `line_length: 120`)
 across all projects without touching each project's `.formatter.exs`.
 
 The file must evaluate to a keyword list containing only ExAlign-recognised
-keys (`:line_length`, `:wrap_short_lines`, `:wrap_with`). ExAlign warns on
+keys (`:line_length`, `:wrap_short_lines`, `:wrap_with`, `:eol_at_eof`). ExAlign warns on
 unknown keys, non-keyword-list content, or evaluation errors, and skips the
 file in those cases.
 
@@ -264,7 +265,8 @@ Example `~/.config/exalign/.formatter.exs`:
 [
   line_length:      120,
   wrap_short_lines: true,
-  wrap_with:        :backslash
+  wrap_with:        :backslash,
+  eol_at_eof:       :remove
 ]
 ```
 
@@ -401,6 +403,29 @@ end
   plugins:   [ExAlign],
   wrap_with: true,
   inputs:    ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
+]
+```
+
+### `eol_at_eof` (atom or nil, default `nil`)
+
+Controls whether a newline is added, removed, or left untouched at the end of
+the file:
+
+| Value | Behaviour |
+|---|---|
+| `:remove` | Remove the trailing newline at the end of the file. |
+| `:add` | Add a trailing newline if not already present. |
+| `nil` | Leave the end-of-file newline untouched (default). |
+
+This is useful when working with version control systems or tools that enforce
+specific newline requirements at end-of-file.
+
+```elixir
+# .formatter.exs
+[
+  plugins:     [ExAlign],
+  eol_at_eof:  :add,
+  inputs:      ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
 ]
 ```
 
