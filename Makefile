@@ -66,10 +66,9 @@ bump-version:
 	echo ""; \
 	read -p "Commit this change ([Aa] - amend)? [Y/n/a] " -n 1 -r; \
 	echo ""; \
+	if [[ $${REPLY} =~ ^[Aa]$$ ]]; then AMEND=" --amend"; fi; \
 	if [[ $${REPLY} =~ ^[YyAa]$$ ]] || [[ -z $${REPLY} ]]; then \
-		git add mix.exs; \
-		if [[ $${REPLY} =~ ^[Aa]$$ ]]; then AMEND=" --amend"; fi; \
-		git commit$${AMEND} -m "Bump version to $${NEW}"; \
+		git commit$${AMEND} -am "Bump version to $${NEW}"; \
 	else \
 		echo "Aborted. Reverting mix.exs..."; \
 		git checkout mix.exs; \
