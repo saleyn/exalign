@@ -1,5 +1,9 @@
 # ExAlign
 
+[![build](https://github.com/saleyn/exalign/actions/workflows/build.yml/badge.svg)](https://github.com/saleyn/exalign/actions/workflows/build.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/exalign.svg)](https://hex.pm/packages/exalign)
+[![Hex.pm](https://img.shields.io/hexpm/dt/exalign.svg)](https://hex.pm/packages/exalign)
+
 A Mix formatter plugin that column-aligns Elixir code, inspired by how Go's
 `gofmt` aligns struct fields and variable declarations, which are more readable
 than the output of the default Elixir code formatter.

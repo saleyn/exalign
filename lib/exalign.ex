@@ -113,12 +113,15 @@ defmodule ExAlign do
 
     line_length = Keyword.get(opts, :line_length, 98)
 
+    # Reattach comments that Code.format_string! moved to their own lines
+    formatted = reattach_formatter_comments(formatted, line_length)
+
     if Keyword.get(opts, :wrap_short_lines, false) do
       formatted
       |> extract_do_to_own_line(opts)
       |> realign_pipe_chains()
       |> align_case_blocks(line_length)
-      |> align_columns()
+      |> align_columns(line_length)
     else
       formatted
       |> collapse_one_liners(opts)
@@ -126,7 +129,7 @@ defmodule ExAlign do
       |> realign_pipe_chains()
       |> collapse_one_liners(opts)
       |> align_case_blocks(line_length)
-      |> align_columns()
+      |> align_columns(line_length)
     end
   end
 
@@ -379,8 +382,168 @@ defmodule ExAlign do
   end
 
   # ---------------------------------------------------------------------------
+  # Reattach comments that Code.format_string! moved to their own lines
+  # ---------------------------------------------------------------------------
+  # Code.format_string! puts end-of-line comments on their own lines above the code.
+  # We try to move them back to the same line if they fit within line_length,
+  # and align them with adjacent comment lines.
+
+  defp reattach_formatter_comments(code, line_length) do
+    lines = String.split(code, "\n")
+    lines_with_comments = do_reattach_comments(lines, line_length, []) |> Enum.join("\n")
+
+    # After reattaching, align comments in assignment groups
+    align_reattached_comments(lines_with_comments)
+  end
+
+  defp do_reattach_comments([], _ll, acc), do: Enum.reverse(acc)
+
+  defp do_reattach_comments([line | rest], ll, acc) do
+    stripped = String.trim_leading(line)
+
+    # Check if this line is a pure comment
+    if String.starts_with?(stripped, "#") do
+      # It's a comment. Check if the next line is code (assignment, attr, etc.)
+      case rest do
+        [next_line | rest_tail] ->
+          # Check if next line is code that could use this comment
+          case try_attach_comment(next_line, line) do
+            {:attach, combined_line} ->
+              # Try to attach the comment
+              if String.length(combined_line) <= ll do
+                # It fits!
+                do_reattach_comments([combined_line | rest_tail], ll, acc)
+              else
+                # Doesn't fit, keep both comment and code on separate lines
+                do_reattach_comments([next_line | rest_tail], ll, [line | acc])
+              end
+
+            :skip ->
+              # Not a code line that can use the comment, keep comment and process next line
+              do_reattach_comments([next_line | rest_tail], ll, [line | acc])
+          end
+
+        [] ->
+          # Comment at end of file
+          do_reattach_comments([], ll, [line | acc])
+      end
+    else
+      # Not a comment line, process normally
+      do_reattach_comments(rest, ll, [line | acc])
+    end
+  end
+
+  defp try_attach_comment(code_line, comment_line) do
+    code_stripped = String.trim_leading(code_line)
+    comment_stripped = String.trim_leading(comment_line)
+    code_indent = get_indent(code_line)
+    comment_indent = get_indent(comment_line)
+
+    # Only attach if indentation matches
+    if code_indent == comment_indent do
+      # Check if code line is an assignment, attribute, or keyword entry
+      is_attachable =
+        Regex.match?(~r/^\w+\s*=(?![>=])/, code_stripped) or
+          Regex.match?(~r/^@\w+\s+/, code_stripped) or
+          Regex.match?(~r/^[a-z_]\w*[?!]?:\s+/, code_stripped) or
+          Regex.match?(~r/^\S.*?\s+=>\s+/, code_stripped)
+
+      if is_attachable do
+        {:attach, "#{String.trim_trailing(code_line)}  #{comment_stripped}"}
+      else
+        :skip
+      end
+    else
+      :skip
+    end
+  end
+
+  # Align comments in assignment groups that were just reattached
+  defp align_reattached_comments(code) do
+    lines = String.split(code, "\n")
+    do_align_reattached_comments(lines, []) |> Enum.join("\n")
+  end
+
+  defp do_align_reattached_comments([], acc), do: Enum.reverse(acc)
+
+  defp do_align_reattached_comments([line | rest], acc) do
+    stripped = String.trim_leading(line)
+    indent = get_indent(line)
+
+    # Check if this is an assignment with a reattached comment (has "  #")
+    if Regex.match?(~r/^[a-z_]\w*\s*=.+\s{2}#/, stripped) do
+      # It has a comment. Check if there are more assignments after this
+      # We'll collect all consecutive assignments with comments and align them
+      {group, remaining} = collect_assignments_with_comments([line | rest], indent)
+
+      if length(group) >= 2 do
+        # Multiple assignments with comments - align them
+        aligned = align_comment_group(group)
+        do_align_reattached_comments(remaining, Enum.reverse(aligned) ++ acc)
+      else
+        do_align_reattached_comments(rest, [line | acc])
+      end
+    else
+      do_align_reattached_comments(rest, [line | acc])
+    end
+  end
+
+  defp collect_assignments_with_comments([], _indent), do: {[], []}
+
+  defp collect_assignments_with_comments([line | rest] = all, indent) do
+    stripped = String.trim_leading(line)
+    line_indent = get_indent(line)
+
+    if line_indent == indent and Regex.match?(~r/^[a-z_]\w*\s*=.+\s{2}#/, stripped) do
+      {more, remaining} = collect_assignments_with_comments(rest, indent)
+      {[line | more], remaining}
+    else
+      {[], all}
+    end
+  end
+
+  defp align_comment_group(lines) do
+
+    # Extract code and comment parts
+    parsed =
+      Enum.map(lines, fn line ->
+        case Regex.run(~r/^(.+?)\s{2}(#.*)$/, line) do
+          [_, code_part, comment] ->
+            {String.trim_trailing(code_part), comment}
+
+          _ ->
+            {line, nil}
+        end
+      end)
+
+    # Find max code length among lines with comments
+    max_code_len =
+      parsed
+      |> Enum.filter(fn {_code, comment} -> comment end)
+      |> Enum.map(fn {code, _comment} -> String.length(code) end)
+      |> case do
+        [] -> 0
+        lengths -> Enum.max(lengths)
+      end
+
+    # Rebuild with aligned comments
+    Enum.map(parsed, fn {code, comment} ->
+      if comment && max_code_len > 0 do
+        code_len = String.length(code)
+        spaces = max(1, max_code_len - code_len + 1)
+        pad = String.duplicate(" ", spaces)
+        "#{code}#{pad}#{comment}"
+      else
+        code
+      end
+    end)
+  end
+
+
+  # ---------------------------------------------------------------------------
   # Move "do" to its own line when the block header spans multiple lines
   # ---------------------------------------------------------------------------
+
   # Code.format_string! writes e.g.:
   #
   #   case expr
@@ -901,11 +1064,11 @@ defmodule ExAlign do
   # Top-level pipeline
   # ---------------------------------------------------------------------------
 
-  defp align_columns(code) do
+  defp align_columns(code, line_length) do
     code
     |> String.split("\n")
     |> lines_to_groups()
-    |> Enum.flat_map(&align_group/1)
+    |> Enum.flat_map(&align_group(&1, line_length))
     |> Enum.join("\n")
   end
 
@@ -1054,13 +1217,31 @@ defmodule ExAlign do
   end
 
   # ---------------------------------------------------------------------------
+  # Helper functions for comment handling
+  # ---------------------------------------------------------------------------
+
+  defp extract_comment_from_line(line) do
+    case Regex.run(~r/^(.+?)\s+(#.*)$/, line) do
+      [_, code_part, comment] ->
+        {String.trim_trailing(code_part), comment}
+
+      _ ->
+        {line, nil}
+    end
+  end
+
+  defp should_wrap_comment(code_line, comment, line_length) do
+    String.length(code_line) + 2 + String.length(comment) > line_length
+  end
+
+  # ---------------------------------------------------------------------------
   # Group alignment
   # ---------------------------------------------------------------------------
 
-  defp align_group([]), do: []
-  defp align_group([line]), do: [line]
+  defp align_group([], _line_length), do: []
+  defp align_group([line], _line_length), do: [line]
 
-  defp align_group(lines) do
+  defp align_group(lines, line_length) do
     type = effective_group_type(lines)
     # Separate :other lines (blanks/comments), align only the typed lines,
     # then re-insert the :other lines at their original positions.
@@ -1069,7 +1250,7 @@ defmodule ExAlign do
       |> Enum.with_index()
       |> Enum.split_with(fn {line, _idx} -> line_type(line) != :other end)
 
-    aligned_typed = do_align(Enum.map(typed_lines, &elem(&1, 0)), type)
+    aligned_typed = do_align(Enum.map(typed_lines, &elem(&1, 0)), type, line_length)
 
     # Reconstruct full list in original order
     typed_with_idx = Enum.zip(aligned_typed, Enum.map(typed_lines, &elem(&1, 1)))
@@ -1088,7 +1269,7 @@ defmodule ExAlign do
   #   after:   name:       "Alice",
   #            age:        30,
   #            occupation: "dev"
-  defp do_align(lines, :keyword) do
+  defp do_align(lines, :keyword, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)([a-z_]\w*[?!]?:)\s+(.*)$/, line) do
@@ -1111,7 +1292,7 @@ defmodule ExAlign do
 
   # Variable assignment: align the = sign
 
-  defp do_align(lines, :tuple_entry) do
+  defp do_align(lines, :tuple_entry, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)\{(.+)\}(,?)\s*$/, line) do
@@ -1160,54 +1341,55 @@ defmodule ExAlign do
     end
   end
 
-  defp do_align(lines, :assignment) do
+  defp do_align(lines, :assignment, line_length) do
     parsed =
       Enum.map(lines, fn line ->
-        case Regex.run(~r/^(\s*)([a-z_]\w*)\s*=(?![>=])\s*(.*)$/, line) do
-          [_, indent, var, value] -> {indent, var, value}
-          _ -> nil
+        # Extract comment if present
+        {code_part, comment} = extract_comment_from_line(line)
+
+        case Regex.run(~r/^(\s*)([a-z_]\w*)\s*=(?![>=])\s*(.*)$/, code_part) do
+          [_, indent, var, value] -> {:ok, indent, var, value, comment}
+          _ -> :error
         end
       end)
 
-    if Enum.all?(parsed, & &1) do
-      max_len = parsed |> Enum.map(fn {_, var, _} -> String.length(var) end) |> Enum.max()
+    # Check if all lines parsed successfully as assignments
+    if Enum.all?(parsed, fn p -> p != :error end) do
+      max_var_len = parsed |> Enum.map(fn {:ok, _indent, var, _value, _comment} -> String.length(var) end) |> Enum.max()
 
-      aligned =
-        Enum.map(parsed, fn {indent, var, value} ->
-          pad = String.duplicate(" ", max_len - String.length(var) + 1)
-          {indent, "#{indent}#{var}#{pad}= #{value}", value}
+      # Build aligned code lines (without comments) and find max length
+      aligned_codes =
+        parsed
+        |> Enum.map(fn {:ok, indent, var, value, _comment} ->
+          pad = String.duplicate(" ", max_var_len - String.length(var) + 1)
+          "#{indent}#{var}#{pad}= #{value}"
         end)
 
-      # Second-level: if all RHS are `SamePrefix:atom, value)`, align atom and value columns
-      rhs_parsed =
-        Enum.map(aligned, fn {_indent, _line, value} ->
-          case Regex.run(~r/^(.*,\s*)(:\w+),\s*(.+)\)$/, value) do
-            [_, prefix, atom, val] -> {prefix, atom, val}
-            _ -> nil
+      max_code_len = aligned_codes |> Enum.map(&String.length/1) |> Enum.max()
+
+      # Build final lines with aligned comments
+      result =
+        Enum.zip(parsed, aligned_codes)
+        |> Enum.flat_map(fn {{:ok, indent, _var, _value, comment}, code_line} ->
+          cond do
+            is_nil(comment) ->
+              # No comment, just return the code line
+              [code_line]
+
+            should_wrap_comment(code_line, comment, line_length) ->
+              # Comment doesn't fit, move it above
+              [indent <> comment, code_line]
+
+            true ->
+              # Comment fits - align it with other comments
+              code_len = String.length(code_line)
+              spaces_to_align = max(1, max_code_len - code_len + 1)
+              pad = String.duplicate(" ", spaces_to_align)
+              ["#{code_line}#{pad}#{comment}"]
           end
         end)
 
-      final_lines =
-        if Enum.all?(rhs_parsed, & &1) do
-          prefixes = rhs_parsed |> Enum.map(&elem(&1, 0))
-
-          if length(Enum.uniq(prefixes)) == 1 do
-            max_atom_len = rhs_parsed |> Enum.map(fn {_, a, _} -> String.length(a) end) |> Enum.max()
-
-            Enum.zip(aligned, rhs_parsed)
-            |> Enum.map(fn {{_indent, line, value}, {prefix, atom, val}} ->
-              base = String.slice(line, 0, String.length(line) - String.length(value))
-              atom_pad = String.duplicate(" ", max_atom_len - String.length(atom) + 1)
-              "#{base}#{prefix}#{atom},#{atom_pad}#{val})"
-            end)
-          else
-            Enum.map(aligned, &elem(&1, 1))
-          end
-        else
-          Enum.map(aligned, &elem(&1, 1))
-        end
-
-      final_lines
+      result
     else
       lines
     end
@@ -1221,7 +1403,7 @@ defmodule ExAlign do
   #   after:   @moduledoc       "…"
   #            @name            "Alice"
   #            @default_timeout 5000
-  defp do_align(lines, :attribute) do
+  defp do_align(lines, :attribute, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)(@\w+)\s+(.*)$/, line) do
@@ -1250,7 +1432,7 @@ defmodule ExAlign do
   #   after:   "name"       => "Alice",
   #            "age"        => 30,
   #            "occupation" => "dev"
-  defp do_align(lines, :arrow) do
+  defp do_align(lines, :arrow, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)(.*?)\s*=>\s*(.*)$/, line) do
@@ -1277,7 +1459,7 @@ defmodule ExAlign do
   #
   #   after:   field :guest_name,       function: &foo/1
   #            field :reservation_code, function: &bar/1
-  defp do_align(lines, {:macro_arg, _}) do
+  defp do_align(lines, {:macro_arg, _}, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)([a-z_]\w*)\s+(:\w+),\s+(.*)$/, line) do
@@ -1345,7 +1527,7 @@ defmodule ExAlign do
   #
   #   after:   [value] -> t.(value)
   #            _       -> nil
-  defp do_align(lines, :case_arm) do
+  defp do_align(lines, :case_arm, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)(.*?)\s+->\s+(.+)$/, line) do
@@ -1372,7 +1554,7 @@ defmodule ExAlign do
   #
   #   after:   def elixirc_paths(:prod), do: ["lib"]
   #            def elixirc_paths(_),     do: ["lib", "examples"]
-  defp do_align(lines, :function_clause) do
+  defp do_align(lines, :function_clause, _line_length) do
     parsed =
       Enum.map(lines, fn line ->
         case Regex.run(~r/^(\s*)(.*?),\s*do:\s+(.*)$/, line) do
@@ -1393,7 +1575,7 @@ defmodule ExAlign do
     end
   end
 
-  defp do_align(lines, _), do: lines
+  defp do_align(lines, _, _line_length), do: lines
 
   # Split a tuple's content string by ", " at bracket depth 0.
   defp split_tuple_elements(str) do

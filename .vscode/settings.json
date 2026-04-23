@@ -1,5 +1,7 @@
 {
   "chat.tools.terminal.autoApprove": {
-    "mix": true
+    "mix": true,
+    "cp": true,
+    "diff": true
   }
 }

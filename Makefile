@@ -64,11 +64,12 @@ bump-version:
 	sed -i "s/version: \"$$CURRENT\"/version: \"$$NEW\"/" mix.exs; \
 	echo "Changed: version: \"$$CURRENT\" -> version: \"$$NEW\""; \
 	echo ""; \
-	read -p "Commit this change? [Y/n] " -n 1 -r; \
+	read -p "Commit this change ([Aa] - amend)? [Y/n/a] " -n 1 -r; \
 	echo ""; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]] || [[ -z $$REPLY ]]; then \
+	if [[ $${REPLY} =~ ^[YyAa]$$ ]] || [[ -z $${REPLY} ]]; then \
 		git add mix.exs; \
-		git commit -m "Bump version to $$NEW"; \
+		if [[ $${REPLY} =~ ^[Aa]$$ ]]; then AMEND=" --amend"; fi; \
+		git commit$${AMEND} -m "Bump version to $${NEW}"; \
 	else \
 		echo "Aborted. Reverting mix.exs..."; \
 		git checkout mix.exs; \
