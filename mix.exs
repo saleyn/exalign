@@ -4,7 +4,7 @@ defmodule ExAlign.MixProject do
   def project do
     [
       app:               :exalign,
-      version:           "0.1.9",
+      version:           "0.1.10",
       elixir:            "~> 1.13",
       start_permanent:   Mix.env() == :prod,
       description:       "A Mix formatter plugin that column-aligns Elixir code",
@@ -37,6 +37,8 @@ defmodule ExAlign.MixProject do
       files:       ~w(lib dev .formatter.exs mix.* Makefile README* LICENSE*),
       licenses:    ["MIT"],
       maintainers: ["Serge Aleynikov"],
+      keywords:    ["elixir", "formatter", "format", "fmt", "align", "source", "code",
+                    "code-style", "text-alignment", "utilities"],
       links:       %{"GitHub" => "https://github.com/saleyn/exalign"}
     ]
   end
