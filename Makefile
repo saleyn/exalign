@@ -77,15 +77,10 @@ bump-version:
 	fi
 
 retire-version: APP=$(shell sed -nE '/app:/{s/.*app:\s*:([a-z_]+).*/\1/p; q}' mix.exs)
-retire-version: VSN=$(shell mix hex.info $(APP) | \
-	sed -n '/Releases *:/{ \
-  	s/Releases *: //; \
-  	s/^[^,]*, *\([^,]*\)(retired).*/\1 RETIRED/; t; \
-  	s/^[^,]*, *\([^,]*\).*/\1/p \
-	}')
+retire-version: VSN=$(shell mix hex.info $(APP) | grep "^Releases:" | sed 's/Releases: //; s/, /\n/g' | sed '/retired/d' | sed -n '$$p')
 retire-version:
 	@if [ -z "$(VSN)" ]; then \
-		echo "No stale versions were found on Hex for $(APP)"; \
+		echo "$(APP): no stale versions were found on Hex"; \
 	else \
 		echo "Retiring version $(VSN) of $(APP) on Hex..."; \
 		mix hex.retire $(APP) $(VSN) deprecated --message "Deprecated"; \
