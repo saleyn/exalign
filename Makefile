@@ -54,19 +54,20 @@ doc docs:
 publish:
 	mix hex.publish$(if $(replace), --replace)
 
+bump-version: AMEND=$(if $(amend), --amend)
 bump-version:
 	@CURRENT=$$(grep -m1 'version:' mix.exs | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/'); \
 	MAJOR=$$(echo $$CURRENT | cut -d. -f1); \
 	MINOR=$$(echo $$CURRENT | cut -d. -f2); \
 	PATCH=$$(echo $$CURRENT | cut -d. -f3); \
-	NEW=$$(echo "$$MAJOR.$$MINOR.$$((PATCH + 1))" | tr -d '\n'); \
-	echo "Bumping version from $$CURRENT to $$NEW"; \
-	sed -i "s/version: \"$$CURRENT\"/version: \"$$NEW\"/" mix.exs; \
-	echo "Changed: version: \"$$CURRENT\" -> version: \"$$NEW\""; \
+	NEW=$$(echo "$${MAJOR}.$${MINOR}.$$((PATCH + 1))" | tr -d '\n'); \
+	echo "Bumping version from $${CURRENT} to $${NEW}"; \
+	sed -i "s/version:\([[:space:]]*\)\"$${CURRENT}\"/version:\1\"$${NEW}\"/" mix.exs; \
+	echo "Changed: version: \"$${CURRENT}\" -> version: \"$${NEW}\""; \
 	echo ""; \
-	read -p "Commit this change ([Aa] - amend)? [Y/n/a] " -n 1 -r; \
+	[ -z $(AMEND) ] && read -p "Commit this change ([Aa] - amend)? [Y/n/a] " -n 1 -r || true; \
 	echo ""; \
-	if [[ $${REPLY} =~ ^[Aa]$$ ]]; then AMEND=" --amend"; fi; \
+	if [ -n $(AMEND) ] || [[ $${REPLY} =~ ^[Aa]$$ ]]; then AMEND=" --amend"; fi; \
 	if [[ $${REPLY} =~ ^[YyAa]$$ ]] || [[ -z $${REPLY} ]]; then \
 		git commit$${AMEND} -am "Bump version to $${NEW}"; \
 	else \

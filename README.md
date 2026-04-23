@@ -1,6 +1,6 @@
 # ExAlign
 
-[![build](https://github.com/saleyn/exalign/actions/workflows/build.yml/badge.svg)](https://github.com/saleyn/exalign/actions/workflows/build.yml)
+[![build](https://github.com/saleyn/exalign/actions/workflows/ci.yml/badge.svg)](https://github.com/saleyn/exalign/actions/workflows/ci.yml)
 [![Hex.pm](https://img.shields.io/hexpm/v/exalign.svg)](https://hex.pm/packages/exalign)
 [![Hex.pm](https://img.shields.io/hexpm/dt/exalign.svg)](https://hex.pm/packages/exalign)
 
