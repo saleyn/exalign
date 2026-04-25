@@ -1,4 +1,5 @@
 .PHONY: help compile test cover regenerate clean publish escript bump-version retire-version
+APP=$(shell sed -nE '/app:/{s/.*app:\s*:([a-z_]+).*/\1/p; q}' mix.exs)
 
 all: compile escript
 
@@ -19,6 +20,7 @@ help:
 	@echo "  publish              Publish to Hex (pass replace=1 to replace an existing version)"
 	@echo "  bump-version         Bump patch version"
 	@echo "  retire-version       Retire a version on Hex (pass version=X.Y.Z)"
+	@echo "  show-versions        Show active package versions on Hex"
 	@echo "  help                 Show this help message"
 
 test:
@@ -77,12 +79,16 @@ bump-version:
 		exit 1; \
 	fi
 
-retire-version: APP=$(shell sed -nE '/app:/{s/.*app:\s*:([a-z_]+).*/\1/p; q}' mix.exs)
-retire-version: VSN=$(shell mix hex.info $(APP) | grep "^Releases:" | sed 's/Releases: //; s/, /\n/g' | sed '/retired/d' | sed -n '$$p')
+retire-version: VSN=$(shell mix hex.info $(APP) | grep "^Releases:" | sed 's/Releases: //; s/, /\n/g' | sed '/retired/d; /\.\.\./d' | sed -n '$$p')
 retire-version:
+	@echo "VSN: $(VSN)"
 	@if [ -z "$(VSN)" ]; then \
 		echo "$(APP): no stale versions were found on Hex"; \
 	else \
 		echo "Retiring version $(VSN) of $(APP) on Hex..."; \
 		mix hex.retire $(APP) $(VSN) deprecated --message "Deprecated"; \
 	fi
+
+show-versions:
+	@mix hex.info $(APP) | grep "^Releases:" | sed 's/Releases: //; s/, /\n/g' | sed '/retired/d; /\.\.\./d'
+
