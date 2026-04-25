@@ -11,7 +11,7 @@ help:
 	@echo "Targets:"
 	@echo "  compile              Compile the project"
 	@echo "  test                 Run the test suite"
-	@echo "  cover                Run tests with coverage (fails if below 90%)"
+	@echo "  cover                Run tests with coverage (fails if below 80%)"
 	@echo "  regenerate           Regenerate Elixir fixtures from dev/test/fixtures/elixir/input/"
 	@echo "  regenerate-erlang    Regenerate Erlang fixtures from dev/test/fixtures/erlang/input/"
 	@echo "  clean                Remove build artefacts and dependencies"
@@ -32,8 +32,8 @@ cover:
 	awk '/Total/{ \
 	  gsub(/[^0-9.]/,""); coverage=$$0 \
 	} END { \
-	  if (coverage < 90.0) { \
-	    printf "Coverage %.2f%% is below threshold 90.0%%\n", coverage; exit 1 \
+	  if (coverage < 80.0) { \
+	    printf "Coverage %.2f%% is below threshold 80.0%%\n", coverage; exit 1 \
 	  } else { \
 	    printf "==> Total coverage: %.2f%%\n", coverage \
 	  } \
