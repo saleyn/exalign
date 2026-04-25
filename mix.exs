@@ -4,7 +4,7 @@ defmodule ExAlign.MixProject do
   def project do
     [
       app:               :exalign,
-      version:           "0.1.11",
+      version:           "0.1.12",
       elixir:            "~> 1.13",
       start_permanent:   Mix.env() == :prod,
       description:       "Column-aligning formatter for Elixir code",
@@ -12,7 +12,7 @@ defmodule ExAlign.MixProject do
       test_load_filters: [~r/_test\.exs$/],
       package:           package(),
       deps:              deps(),
-      test_coverage:     [output: ".cover"],
+      test_coverage:     [output: ".cover", summary: [threshold: 80]],
       escript:           escript(),
       docs:              docs()
     ]

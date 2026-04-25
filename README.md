@@ -341,7 +341,8 @@ When using ExAlign as a formatter plugin, you can pass options in `.formatter.ex
   # ExAlign-specific options
   line_length:  120,
   wrap_with:    :backslash,
-  eol_at_eof:   :add
+  eol_at_eof:   :add,
+  trim_eol_ws:  true
 ]
 ```
 
@@ -351,7 +352,8 @@ Global configuration is also supported via `~/.config/exalign/.formatter.exs`:
 [
   line_length: 120,
   wrap_with:   :backslash,
-  eol_at_eof:  :add
+  eol_at_eof:  :add,
+  trim_eol_ws: true
 ]
 ```
 
@@ -373,6 +375,9 @@ Project-local options always take precedence over global configuration.
 
 - `:eol_at_eof` (`:add`, `:remove`, or `nil`, default `nil`)  
   Controls the end-of-file newline handling. With `:add`, a trailing newline is added if not present. With `:remove`, any trailing newline is removed. With `nil` (default), the end-of-file newline is left unchanged.
+
+- `:trim_eol_ws` (boolean, default `true`)  
+  When `true`, trailing whitespace is trimmed from each line. When `false`, trailing whitespace is left untouched.
 
 ## Standalone `exalign` executable
 
@@ -396,6 +401,7 @@ Files are formatted in-place. Directories are walked recursively for `*.ex` and 
 | `--wrap-short-lines` | off | Keep `->` arms expanded instead of collapsing them |
 | `--wrap-with backslash\|do` | `backslash` | How to format multi-line `with` blocks |
 | `--eol-at-eof add\|remove` | unset | End-of-file newline handling (unset means leave unchanged) |
+| `--trim-eol-ws` / `--no-trim-eol-ws` | on | Trim or don't trim trailing whitespace from each line |
 | `--check` | off | Exit 1 if any file would be changed; write nothing |
 | `--dry-run` | off | Print reformatted content to stdout; write nothing |
 | `-s`, `--silent` | off | Suppress stdout output (stderr warnings still shown) |

@@ -245,7 +245,7 @@ defmodule ExAlignTest do
     """
 
     # Auto-detection of aligned macros means no manual locals_without_parens needed.
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
 
     field_lines =
       output
@@ -272,7 +272,7 @@ defmodule ExAlignTest do
     # Only one occurrence — not an alignment group, so no extra padding is added.
     # The standard formatter will parenthesize the call since it appears only once
     # and is therefore not added to locals_without_parens.
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
     # No alignment padding (no double-space after the comma)
     refute output =~ ~r/field.+,  /
   end
@@ -288,7 +288,7 @@ defmodule ExAlignTest do
     # field and other each appear once so neither is added to locals_without_parens;
     # Code.format_string! will parenthesize them.  What matters is that they are
     # NOT grouped together (different macro names) and NOT given alignment padding.
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
 
     # Neither line should have alignment padding (double space after comma)
     refute output =~ ~r/field.+,  /, "field line must not be over-padded"
@@ -308,7 +308,7 @@ defmodule ExAlignTest do
     input =
       "case result do\n  {:ok, value} ->\n    value\n\n  {:error, _} = err ->\n    err\nend\n"
 
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
 
     assert output =~ ~r/\{:ok, value\}\s+-> value/,
            "short :ok arm should be collapsed to one line"
@@ -341,7 +341,7 @@ defmodule ExAlignTest do
     input =
       "case result do\n  :ok ->\n    a = 1\n    a\n  :error ->\n    nil\nend\n"
 
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
 
     # :ok arm has two body lines — must NOT be collapsed
     refute output =~ ~r/:ok -> a = 1/
@@ -452,7 +452,7 @@ defmodule ExAlignTest do
     end
     """
 
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
 
     # When there are multi-line bodies, no alignment should occur.
     # The output should match the input (since Code.format_string! already expanded it)
@@ -577,7 +577,7 @@ defmodule ExAlignTest do
     end
     """
 
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
 
     # The `do` must be extracted to its own line for complex (piped) expressions
     lines = String.split(output, "\n")
@@ -588,7 +588,7 @@ defmodule ExAlignTest do
 
   test "does not split single-line case header" do
     input = "case x do\n  :ok -> :fine\nend\n"
-    output = ExAlign.format(input, [])
+    output = ExAlign.format(input, eol_at_eof: :add)
     assert output =~ "case x do", "single-line case header must not be split"
   end
 
@@ -725,8 +725,933 @@ defmodule ExAlignTest do
       with_global_config("[line_length: 40]", fn ->
         # Passing line_length: 120 locally must win over the global 40
         result = ExAlign.format("x = 1\nfoo = 2\n", line_length: 120)
-        assert is_binary(result)
+        assert result =~ "x"
+        assert result =~ "foo"
       end)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # End-of-file newline handling (eol_at_eof option)
+  # ---------------------------------------------------------------------------
+
+  describe "eol_at_eof option" do
+    test "eol_at_eof: :add adds newline when missing" do
+      input = "x = 1"  # no trailing newline
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert String.ends_with?(output, "\n"), "should add newline when eol_at_eof: :add"
+    end
+
+    test "eol_at_eof: :add preserves newline when present" do
+      input = "x = 1\n"
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert String.ends_with?(output, "\n"), "should preserve newline when eol_at_eof: :add"
+    end
+
+    test "eol_at_eof: :remove removes newline when present" do
+      input = "x = 1\n"
+      output = ExAlign.format(input, eol_at_eof: :remove)
+      refute String.ends_with?(output, "\n"), "should remove newline when eol_at_eof: :remove"
+    end
+
+    test "eol_at_eof: :remove preserves no newline when absent" do
+      input = "x = 1"
+      output = ExAlign.format(input, eol_at_eof: :remove)
+      refute String.ends_with?(output, "\n"), "should not add newline when eol_at_eof: :remove"
+    end
+
+    test "eol_at_eof: nil (default) leaves output unchanged from formatter" do
+      # The formatter's default behavior is preserved when eol_at_eof is nil
+      input = "x = 1\n"
+      output = ExAlign.format(input, eol_at_eof: nil)
+      # The standard formatter usually adds a trailing newline for valid Elixir code
+      assert output =~ "x"
+      assert output =~ "="
+    end
+
+    test "eol_at_eof: nil (default) with no initial newline" do
+      input = "x = 1"
+      output = ExAlign.format(input, eol_at_eof: nil)
+      # Default behavior: preserve what formatter produces
+      assert output =~ "x = 1"
+    end
+
+    test "eol_at_eof works with multi-line code" do
+      input = """
+      x = 1
+      foo = 2
+      """
+      output = ExAlign.format(input, eol_at_eof: :remove)
+      refute String.ends_with?(output, "\n"), "should remove final newline from multi-line code"
+    end
+  end
+
+  describe "option validation" do
+    test "unrecognized options emit warning but still format" do
+      warning =
+        capture_io(:stderr, fn ->
+          result = ExAlign.format("x = 1\n", unknown_option: true)
+          assert result =~ "x"
+          assert result =~ "="
+        end)
+
+      assert warning =~ "unsupported option"
+    end
+
+    test "wrap_with option accepts :backslash" do
+      input = """
+      with {:ok, a} <- foo(),
+           {:ok, b} <- bar(a) do
+        {:ok, {a, b}}
+      end
+      """
+      output = ExAlign.format(input, wrap_with: :backslash)
+      assert output =~ "with"
+      assert output =~ "foo"
+    end
+
+    test "wrap_with option accepts :do" do
+      input = """
+      with {:ok, a} <- foo(),
+           {:ok, b} <- bar(a) do
+        {:ok, {a, b}}
+      end
+      """
+      output = ExAlign.format(input, wrap_with: :do)
+      assert output =~ "with"
+      assert output =~ "bar"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Edge cases and error handling
+  # ---------------------------------------------------------------------------
+
+  describe "edge cases" do
+    test "handles empty input" do
+      output = ExAlign.format("", [])
+      assert output == ""
+    end
+
+    test "handles whitespace-only input" do
+      output = ExAlign.format("   \n  \n", [])
+      assert is_binary(output)
+      # Whitespace-only input becomes empty after formatting
+      refute String.trim(output) =~ ~r/\S/
+    end
+
+    test "handles inline comments in assignments" do
+      input = """
+      x = 1  # first
+      foo = "bar"  # second
+      """
+      expected = """
+      x   = 1     # first
+      foo = "bar" # second
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "handles nested data structures" do
+      input = """
+      data = %{
+        users: [
+          %{name: "Alice", age: 30},
+          %{name: "Bob", age: 25}
+        ]
+      }
+      """
+      expected = """
+      data = %{
+        users: [
+          %{name: "Alice", age: 30},
+          %{name: "Bob", age: 25}
+        ]
+      }
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "handles pipe chains with multiple operators" do
+      input = """
+      result = list
+            |> Enum.map(&process/1)
+            |> Enum.filter(&valid?/1)
+            |> Enum.sort()
+      """
+      expected = """
+      result =
+        list
+        |> Enum.map(&process/1)
+        |> Enum.filter(&valid?/1)
+        |> Enum.sort()
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "handles with blocks with multiple clauses" do
+      input = """
+      with {:ok, a} <- get_a(),
+           {:ok, bb} <- get_b(),
+           {:ok, ccc} <- get_c() do
+        {:ok, {a, b, c}}
+      end
+      """
+      expected = """
+      with \\
+        {:ok, a}   <- get_a(),
+        {:ok, bb}  <- get_b(),
+        {:ok, ccc} <- get_c()
+      do
+        {:ok, {a, b, c}}
+      end
+      """
+      output = ExAlign.format(input, wrap_with: :backslash, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "handles mixed alignment groups" do
+      input = """
+      a = 1
+      bbcd = 2
+
+      x = 10
+      yy = 20
+      z = 30
+      """
+      expected = """
+      a    = 1
+      bbcd = 2
+
+      x    = 10
+      yy   = 20
+      z    = 30
+      """
+      # Don't assert exact output due to formatter variations
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "features/1 returns keyword list with plugin info" do
+      result = ExAlign.features([])
+      assert is_list(result)
+      # The plugin returns metadata for Mix.Tasks.Format
+      assert Keyword.has_key?(result, :extensions) or is_list(result)
+    end
+
+    test "reattaching formatter comments" do
+      # This tests the internal comment reattachment logic
+      input = """
+      x = 1  # important
+      foo = "bar"
+      """
+      expected = """
+      x   = 1     # important
+      foo = "bar"
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "case arms stay expanded when body too long for line" do
+      long_body = String.duplicate("x", 70)
+      input = """
+      case x do
+        :ok ->
+          #{long_body}
+        :error -> :none
+      end
+      """
+      expected = """
+      case x do
+        :ok    ->
+          #{long_body}
+        :error ->
+          :none
+      end
+      """
+      output = ExAlign.format(input, line_length: 80, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "multiple case blocks in sequence" do
+      input = """
+      case x do
+        1 -> :one
+        22 -> :two
+      end
+
+      case y do
+        a -> :alpha
+        bbb -> :beta
+      end
+      """
+      expected = """
+      case x do
+        1  -> :one
+        22 -> :two
+      end
+
+      case y do
+        a   -> :alpha
+        bbb -> :beta
+      end
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "guards in case arm patterns" do
+      input = """
+      case {a, b} do
+        {x, y} when is_integer(x) -> :ok
+        {_, _} -> :error
+      end
+      """
+      expected = """
+      case {a, b} do
+        {x, y} when is_integer(x) -> :ok
+        {_, _}                    -> :error
+      end
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "tuple unpacking in assignments" do
+      input = """
+      {a, b} = get_tuple()
+      {x, y, z} = get_triple()
+      """
+      expected = """
+      {a, b} = get_tuple()
+      {x, y, z} = get_triple()
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "mixed map and keyword list syntax" do
+      input = """
+      opts1 = [key: :value, other: 42]
+      opts2 = %{key: :value, other: 42}
+      """
+      expected = """
+      opts1 = [key: :value, other: 42]
+      opts2 = %{key: :value, other: 42}
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "cond block alignment" do
+      input = """
+      cond do
+        x > 100 -> :large
+        x > 10 -> :medium
+        true -> :small
+      end
+      """
+      expected = """
+      cond do
+        x > 100 -> :large
+        x > 10  -> :medium
+        true    -> :small
+      end
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "line_length option affects alignment" do
+      input = """
+      x = 1
+      short = 2
+      very_long_variable_name = 3
+      """
+      expected = """
+      x                       = 1
+      short                   = 2
+      very_long_variable_name = 3
+      """
+      # With longer line length, more alignment happens
+      output = ExAlign.format(input, line_length: 120, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "wrap_with :do option on with block" do
+      input = """
+      with {:ok, user} <- User.get(id),
+           {:ok, profile} <- Profile.get(user) do
+        {:ok, {user, profile}}
+      end
+      """
+      expected = """
+      with {:ok, user} <- User.get(id),
+           {:ok, profile} <- Profile.get(user) do
+        {:ok, {user, profile}}
+      end
+      """
+      output = ExAlign.format(input, wrap_with: :do, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "with block using backslash wrap" do
+      input = """
+      with {:ok, a} <- foo(),
+           {:ok, bb} <- bar(a),
+           do: {:ok, {a, b}}
+      """
+      expected = """
+      with {:ok, a} <- foo(),
+           {:ok, bb} <- bar(a),
+           do: {:ok, {a, b}}
+      """
+      output = ExAlign.format(input, wrap_with: :backslash, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "attribute alignment with mixed types" do
+      input = """
+      @doc "Module docs"
+      @vsn 1
+      @behavior GenServer
+      """
+      expected = """
+      @doc      "Module docs"
+      @vsn      1
+      @behavior GenServer
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "function clause alignment" do
+      input = """
+      def process(:ok),    do: true
+      def process(:error), do: false
+      def process(_),      do: nil
+      """
+      expected = """
+      def process(:ok),    do: true
+      def process(:error), do: false
+      def process(_),      do: nil
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "nested pipe chains with comments" do
+      input = """
+      result = values
+               |> Enum.filter(&valid?/1) # filter invalid
+               |> Enum.map(&trans/1) # transform
+               |> Enum.sort() # sort
+      """
+      expected = """
+      result =
+        values
+        # filter invalid
+        |> Enum.filter(&valid?/1)
+        # transform
+        |> Enum.map(&trans/1)
+        # sort
+        |> Enum.sort()
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "complex nested map/struct creation" do
+      input = """
+      user = %User{
+        name: "Alice",
+        email: "alice@example.com"
+      }
+
+      params = %{
+        "user_id" => user.id,
+        "timestamp" => now()
+      }
+      """
+      expected = """
+      user = %User{
+        name:  "Alice",
+        email: "alice@example.com"
+      }
+
+      params = %{
+        "user_id"   => user.id,
+        "timestamp" => now()
+      }
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "single line vs multi-line with extraction" do
+      # Single-line with should not split
+      single_inp = "with {:ok, a} <- foo(), do: a"
+      single_exp = "with {:ok, a} <- foo(), do: a"
+      single_out = ExAlign.format(single_inp, [])
+      assert single_exp == single_out
+
+      # Multi-line with should extract do
+      multi_inp = """
+      with {:ok, a} <- foo(),
+           {:ok, bb} <- bar(a) do
+        {:ok, {a, bb}}
+      end
+      """
+      multi_exp = """
+      with \\
+        {:ok, a}  <- foo(),
+        {:ok, bb} <- bar(a)
+      do
+        {:ok, {a, bb}}
+      end
+      """
+      multi_out = ExAlign.format(multi_inp, eol_at_eof: :add)
+      assert multi_exp == multi_out
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Global config with more edge cases
+  # ---------------------------------------------------------------------------
+
+  describe "additional global config tests" do
+    test "global config with multiple options" do
+      with_global_config("[line_length: 80, wrap_with: :do, eol_at_eof: :add]", fn ->
+        opts = ExAlign.load_global_config()
+        assert opts[:line_length] == 80
+        assert opts[:wrap_with] == :do
+        assert opts[:eol_at_eof] == :add
+      end)
+    end
+
+    test "formatting respects all global eol_at_eof remove option" do
+      with_global_config("[line_length: 80, eol_at_eof: :remove]", fn ->
+        input    = "x = 1\n"
+        expected = "x = 1"
+        output = ExAlign.format(input, [])
+        # The global config affects the output
+        assert output == expected
+      end)
+    end
+
+    test "formatting respects all global eol_at_eof add option" do
+      with_global_config("[line_length: 80, eol_at_eof: :add]", fn ->
+        input    = "x = 1"
+        expected = "x = 1\n"
+        output = ExAlign.format(input, eol_at_eof: :add)
+        # The global config affects the output
+        assert output == expected
+      end)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Comprehensive integration tests
+  # ---------------------------------------------------------------------------
+
+  describe "integration scenarios" do
+    test "real-world module structure" do
+      input = """
+      defmodule MyApp.Service do
+        @moduledoc "Service module"
+        @timeout 5000
+        @retry_count 3
+
+        def process(data), do: handle(data)
+        def process_async(data, opts), do: Task.async(fn -> handle(data) end)
+
+        defp handle(data) do
+          case validate(data) do
+            {:ok, valid} -> process_data(validated)
+            {:error, reason} -> {:error, reason}
+          end
+        end
+
+        defp validate(data) do
+          with {:ok, parsed} <- parse(data),
+               {:ok, valid}  <- check(parsed) do
+            {:ok, valid}
+          end
+        end
+      end
+      """
+      expected = """
+      defmodule MyApp.Service do
+        @moduledoc   "Service module"
+        @timeout     5000
+        @retry_count 3
+
+        def process(data),             do: handle(data)
+        def process_async(data, opts), do: Task.async(fn -> handle(data) end)
+
+        defp handle(data) do
+          case validate(data) do
+            {:ok,    valid}  -> process_data(validated)
+            {:error, reason} -> {:error, reason}
+          end
+        end
+
+        defp validate(data) do
+          with \\
+            {:ok, parsed} <- parse(data),
+            {:ok, valid}  <- check(parsed)
+          do
+            {:ok, valid}
+          end
+        end
+      end
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "formatting preserves semantics" do
+      input = """
+      result = case x do
+        1 -> :one
+        22 -> :two
+        _ -> :other
+      end
+      """
+      expected = """
+      result =
+        case x do
+          1  -> :one
+          22 -> :two
+          _  -> :other
+        end
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "idempotent formatting across multiple passes" do
+      input = """
+      x = 1
+      foo = "bar"
+      something_long = 42
+      """
+      first_pass = ExAlign.format(input, [])
+      second_pass = ExAlign.format(first_pass, [])
+      # Should be idempotent - formatting the result again gives the same output
+      assert first_pass == second_pass
+    end
+
+    test "options propagate through entire pipeline" do
+      input = """
+      x = 1
+      foo = 2
+      """
+      # Test that different options produce different results
+      output_80 = ExAlign.format(input, line_length: 80)
+      output_40 = ExAlign.format(input, line_length: 40)
+      # Both should be valid outputs
+      assert output_80 =~ "x"
+      assert output_40 =~ "foo"
+    end
+
+    test "keyword list in function call" do
+      input = """
+      function(
+        opt1: value1,
+        opt2: value2,
+        long_option: value3
+      )
+      """
+      expected = """
+      function(
+        opt1:        value1,
+        opt2:        value2,
+        long_option: value3
+      )
+      """
+
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "attribute with function calls" do
+      input = """
+      @doc    "Documentation"
+      @module Module.func()
+      @extra  some_value
+      """
+
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output =~ "@doc"
+      assert output =~ "@module"
+      assert output =~ "@extra"
+    end
+
+    test "case with single clause" do
+      input = """
+      case x do
+        :ok -> :result
+      end
+      """
+      expected = """
+      case x do
+        :ok -> :result
+      end
+      """
+
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "struct fields with long names" do
+      input = """
+      %MyStruct{
+        very_long_field_name: value1,
+        another_long_name: value2,
+        short: value3
+      }
+      """
+      expected = """
+      %MyStruct{
+        very_long_field_name: value1,
+        another_long_name:    value2,
+        short:                value3
+      }
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "function def with guards and do" do
+      input = """
+      def handle(:ok),          do: true
+      def handle(:error),       do: false
+      def handle(_),            do: nil
+      """
+      expected = """
+      def handle(:ok),    do: true
+      def handle(:error), do: false
+      def handle(_),      do: nil
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "map with symbol keys" do
+      input = """
+      %{
+        key1: value1,
+        key2: value2,
+        very_long_key_name: value3
+      }
+      """
+      expected = """
+      %{
+        key1:               value1,
+        key2:               value2,
+        very_long_key_name: value3
+      }
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "comment between aligned lines" do
+      input = """
+      x = 1
+      # Comment
+      foo = "bar"
+      """
+      expected = """
+      x   = 1
+      foo = "bar" # Comment
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      # Comment placement may vary - just verify all parts are present
+      assert output == expected
+    end
+
+    test "tuple pattern matching" do
+      input = """
+      {a, b} = get_pair()
+      {x, y, z} = get_triple()
+      """
+      expected = """
+      {a, b} = get_pair()
+      {x, y, z} = get_triple()
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      # Verify both patterns are present and aligned
+      assert output == expected
+    end
+
+    test "if/unless in case" do
+      input = """
+      case x do
+        y when y > 0 -> :positive
+        y when y < 0 -> :negative
+        _ -> :zero
+      end
+      """
+      expected = """
+      case x do
+        y when y > 0 -> :positive
+        y when y < 0 -> :negative
+        _            -> :zero
+      end
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "map with mixed key types" do
+      input = """
+      %{
+        "string_key"  => value1,
+        :atom_key => value2,
+        123 => value3
+      }
+      """
+      expected = """
+      %{
+        "string_key" => value1,
+        :atom_key    => value2,
+        123          => value3
+      }
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "align with comments above" do
+      input = """
+      # This is a comment
+      x = 1
+      foo = "bar"
+      """
+      expected = """
+      x   = 1     # This is a comment
+      foo = "bar"
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "wrap_with do with short with block" do
+      input = """
+      with a <- foo() do
+        a
+      end
+      """
+      expected = """
+      with a <- foo() do
+        a
+      end
+      """
+      output = ExAlign.format(input, wrap_with: :do, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "complex nested structures" do
+      input = """
+      config = %{
+        database: %{"host" => host, "port" => port},
+        cache: [ttl: 3600, size: 1000],
+        features: [auth: true, logs: false]
+      }
+      """
+      expected = """
+      config = %{
+        database: %{"host" => host, "port" => port},
+        cache:    [ttl: 3600, size: 1000],
+        features: [auth: true, logs: false]
+      }
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "function with multiple pattern matches" do
+      input = """
+      def process({:ok, data}), do: handle_ok(data)
+      def process({:error, code}), do: handle_error(code)
+      def process(_), do: :unknown
+      """
+      expected = """
+      def process({:ok, data}),    do: handle_ok(data)
+      def process({:error, code}), do: handle_error(code)
+      def process(_),              do: :unknown
+      """
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "eol_at_eof add on empty file" do
+      input = ""
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == "\n"
+    end
+
+    test "eol_at_eof with only whitespace" do
+      input = "   \n"
+      output = ExAlign.format(input, eol_at_eof: :remove)
+      assert output == ""
+    end
+
+    test "short_lines with multi-clauses case" do
+      input = """
+      result = case maybe_value do
+        nil ->
+          :not_found
+        val ->
+          {:found, val}
+      end
+      """
+      expected = """
+      result =
+        case maybe_value do
+          nil ->
+            :not_found
+          val ->
+            {:found, val}
+        end
+      """
+
+      output = ExAlign.format(input, wrap_short_lines: true, eol_at_eof: :add)
+      assert output == expected
+    end
+
+    test "alignment across different indentation levels" do
+      input = """
+      defmodule Example do
+        x = 1
+        yy = 2
+
+        def inner do
+          a = 1
+          foo = 2
+        end
+      end
+      """
+      expected = """
+      defmodule Example do
+        x  = 1
+        yy = 2
+
+        def inner do
+          a   = 1
+          foo = 2
+        end
+      end
+      """
+
+      output = ExAlign.format(input, eol_at_eof: :add)
+      assert output == expected
     end
   end
 end

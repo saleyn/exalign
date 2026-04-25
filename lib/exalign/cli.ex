@@ -12,18 +12,21 @@ defmodule ExAlign.CLI do
       --wrap-short-lines    Re-wrap lines that are shorter than line-length
       --wrap-with backslash|do  How to wrap `do` expressions (default: backslash)
       --eol-at-eof add|remove  End-of-file newline handling
+      --trim-eol-ws         Trim trailing whitespace from each line (default: true)
+      --no-trim-eol-ws      Do not trim trailing whitespace
       --check               Check formatting without writing files; exit 1 if any
                             file would be changed
       --dry-run             Print would-be changes without writing files
+      --no-summary          Suppress summary output in --check and --dry-run modes
       -s, --silent          Suppress all stdout output
       -h, --help            Print this help
 
   ## Global configuration
 
-  Default values for `--line-length`, `--wrap-short-lines`, `--wrap-with`, and
-  `--eol-at-eof` can be set in `~/.config/exalign/.formatter.exs`. CLI flags
-  always take precedence over that file. See `ExAlign` module docs for the file
-  format.
+  Default values for `--line-length`, `--wrap-short-lines`, `--wrap-with`,
+  `--eol-at-eof`, and `--trim-eol-ws` can be set in
+  `~/.config/exalign/.formatter.exs`. CLI flags always take precedence over
+  that file. See `ExAlign` module docs for the file format.
 
   ## Examples
 
@@ -37,9 +40,11 @@ defmodule ExAlign.CLI do
     wrap_short_lines: :boolean,
     wrap_with:        :string,
     eol_at_eof:       :string,
+    trim_eol_ws:      :boolean,
     check:            :boolean,
     dry_run:          :boolean,
     silent:           :boolean,
+    no_summary:       :boolean,
     help:             :boolean
   ]
 
@@ -73,6 +78,7 @@ defmodule ExAlign.CLI do
       true ->
         format_opts = build_format_opts(opts)
         silent      = opts[:silent] || false
+        no_summary  = opts[:no_summary] || false
 
         mode =
           cond do
@@ -94,7 +100,7 @@ defmodule ExAlign.CLI do
           {:ok,      _} ->
             :ok
           {:changed, n} ->
-            silent || IO.puts(:stderr, "#{n} file(s) would be reformatted")
+            silent || no_summary || IO.puts(:stderr, "#{n} file(s) would be reformatted")
             {:error, 1}
           {:error,   _} ->
             {:error, 1}
@@ -128,6 +134,11 @@ defmodule ExAlign.CLI do
     format_opts =
       if opts[:eol_at_eof],
         do:   Keyword.put(format_opts, :eol_at_eof, String.to_atom(opts[:eol_at_eof])),
+        else: format_opts
+
+    format_opts =
+      if opts[:trim_eol_ws] != nil,
+        do:   Keyword.put(format_opts, :trim_eol_ws, opts[:trim_eol_ws]),
         else: format_opts
 
     format_opts

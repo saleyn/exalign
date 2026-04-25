@@ -63,7 +63,7 @@ defmodule ExAlign do
   exist or cannot be evaluated.
   """
   @global_config_path Path.expand("~/.config/exalign/.formatter.exs")
-  @supported_global_options ~w[line_length wrap_short_lines wrap_with eol_at_eof]a
+  @supported_global_options ~w[line_length wrap_short_lines wrap_with eol_at_eof trim_eol_ws]a
   @standard_formatter_options ~w[locals_without_parens inputs plugins subdirectories import_deps]a
   @ignored_options            ~w[extension file sigils]a
 
@@ -94,12 +94,17 @@ defmodule ExAlign do
   on top of the standard `Code.format_string!` pass.
 
   `opts` may include any standard formatter options plus the ExAlign-specific
-  keys `:wrap_short_lines`, `:wrap_with`, `:line_length`, and `:eol_at_eof`.
+  keys `:wrap_short_lines`, `:wrap_with`, `:line_length`, `:eol_at_eof`, and
+  `:trim_eol_ws`.
 
   `:eol_at_eof` can be:
     - `:remove` - remove trailing newline at end of file
     - `:add` - add trailing newline if not present
     - `nil` (default) - leave end-of-file newline untouched
+
+  `:trim_eol_ws` can be:
+    - `true` (default) - trim trailing whitespace from each line
+    - `false` - leave trailing whitespace untouched
   """
   def format(contents, opts) do
     opts = Keyword.merge(load_global_config(), validate_options(opts, ".formatter.exs"))
@@ -136,6 +141,17 @@ defmodule ExAlign do
         |> collapse_one_liners(opts)
         |> align_case_blocks(line_length)
         |> align_columns(line_length)
+      end
+
+    # Trim trailing whitespace from each line if trim_eol_ws is enabled
+    result =
+      if Keyword.get(opts, :trim_eol_ws, true) do
+        result
+        |> String.split("\n")
+        |> Enum.map(&String.trim_trailing/1)
+        |> Enum.join("\n")
+      else
+        result
       end
 
     # Handle end-of-file newline based on eol_at_eof setting
@@ -1149,6 +1165,7 @@ defmodule ExAlign do
   #   :keyword          ->  key: value  (keyword list / struct field)
   #   :arrow            ->  key => value
   #   :case_arm         ->  pattern -> body  (case/cond/fn arm, one-liner)
+  #   :with_clause      ->  pattern <- value  (with block clause)
   #   :assignment       ->  var = value
   #   :tuple_entry      ->  {:atom, value, ...},?
   #   :function_clause  ->  def/defp name(...), do: value
@@ -1175,10 +1192,17 @@ defmodule ExAlign do
       # Map arrow entry:  key => value  (key may be any expression)
       Regex.match?(~r/^\S.*?\s+=>\s+\S/, stripped) ->
         :arrow
+
+      # With block clause:  pattern <- expression
+      not elixir_keyword?(stripped) and
+          Regex.match?(~r/^.+\s+<-\s+\S/, stripped) ->
+        :with_clause
+
       # Case/cond/fn arm with body on same line:  pattern -> body
       not elixir_keyword?(stripped) and
           Regex.match?(~r/^.+\s+->\s+\S/, stripped) ->
         :case_arm
+
       # Macro call with atom first arg:  macro :atom, rest  (e.g. field :name, opts)
       not elixir_keyword?(stripped) and
           Regex.match?(~r/^[a-z_]\w*\s+:\w+,\s+\S/, stripped) ->
@@ -1565,6 +1589,33 @@ defmodule ExAlign do
       Enum.map(parsed, fn {indent, prefix, value} ->
         pad = String.duplicate(" ", max_len - String.length(prefix) + 1)
         "#{indent}#{prefix},#{pad}do: #{value}"
+      end)
+    else
+      lines
+    end
+  end
+
+  # With block clause: align the <- operator
+  #   before:  {:ok, a} <- foo(),
+  #            {:ok, bb} <- bar(a)
+  #
+  #   after:   {:ok, a}  <- foo(),
+  #            {:ok, bb} <- bar(a)
+  defp do_align(lines, :with_clause, _line_length) do
+    parsed =
+      Enum.map(lines, fn line ->
+        case Regex.run(~r/^(\s*)(.*?)\s+<-\s+(.+)$/, line) do
+          [_, indent, pattern, expr] -> {indent, String.trim_trailing(pattern), expr}
+          _ -> nil
+        end
+      end)
+
+    if Enum.all?(parsed, & &1) do
+      max_len = parsed |> Enum.map(fn {_, pattern, _} -> String.length(pattern) end) |> Enum.max()
+
+      Enum.map(parsed, fn {indent, pattern, expr} ->
+        pad = String.duplicate(" ", max_len - String.length(pattern) + 1)
+        "#{indent}#{pattern}#{pad}<- #{expr}"
       end)
     else
       lines
