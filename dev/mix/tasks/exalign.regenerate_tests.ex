@@ -1,12 +1,12 @@
-defmodule Mix.Tasks.Fmt.RegenerateTests do
-  @shortdoc "Regenerate fixtures/expected/ from fixtures/input/"
+defmodule Mix.Tasks.Exalign.RegenerateTests do
+  @shortdoc "Regenerate Elixir fixtures/expected/ from fixtures/input/"
   @moduledoc """
-  Runs `ExAlign.format/2` on every `.ex` file in `fixtures/input/`
-  and writes the result to the matching file in `fixtures/expected/`.
+  Runs `ExAlign.format/2` on every `.ex` file in `dev/test/fixtures/elixir/input/`
+  and writes the result to the matching file in `dev/test/fixtures/elixir/expected/`.
 
   ## Usage
 
-      mix fmt.regenerate_tests
+      mix exalign.regenerate_tests
 
   Run `mix test` afterwards to confirm the updated expected files match the
   current formatter output.
@@ -16,8 +16,8 @@ defmodule Mix.Tasks.Fmt.RegenerateTests do
 
   @impl Mix.Task
   def run(_args) do
-    input_dir = Path.join([File.cwd!(), "dev", "test", "fixtures", "input"])
-    expected_dir = Path.join([File.cwd!(), "dev", "test", "fixtures", "expected"])
+    input_dir    = Path.join([File.cwd!(), "dev/test/fixtures/input"])
+    expected_dir = Path.join([File.cwd!(), "dev/test/fixtures/expected"])
 
     File.mkdir_p!(expected_dir)
 

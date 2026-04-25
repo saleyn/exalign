@@ -14,8 +14,7 @@ defmodule Example.MultilineArms do
         |> revoke_sessions()
         |> archive_data()
         |> log_event(:deleted)
-      {:system, action} ->
-        Logger.info("System event: #{action}")
+      {:system, action} -> Logger.info("System event: #{action}")
     end
   end
 

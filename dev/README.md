@@ -27,14 +27,14 @@ the cleanest way to silence the warning without patching `mix.exs`.
 
 ## Tasks
 
-### `mix fmt.regenerate_tests`
+### `mix exalign.regenerate_tests`
 
 Runs `ExAlign.format/2` on every `.ex` file in
-`dev/test/fixtures/input/` and writes the result to the matching file in
-`dev/test/fixtures/expected/`. Used to update expected fixture outputs after
+`dev/test/fixtures/elixir/input/` and writes the result to the matching file in
+`dev/test/fixtures/elixir/expected/`. Used to update expected fixture outputs after
 a formatter change.
 
 ```bash
-mix fmt.regenerate_tests
+mix exalign.regenerate_tests
 mix test
 ```

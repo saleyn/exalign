@@ -9,16 +9,17 @@ help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "Targets:"
-	@echo "  compile         Compile the project"
-	@echo "  test            Run the test suite"
-	@echo "  cover           Run tests with coverage (fails if below 90%)"
-	@echo "  regenerate      Regenerate dev/test/fixtures/expected/ from dev/test/fixtures/input/"
-	@echo "  clean           Remove build artefacts and dependencies"
-	@echo "  escript         Build the exalign standalone executable"
-	@echo "  publish         Publish to Hex (pass replace=1 to replace an existing version)"
-	@echo "  bump-version    Bump patch version"
-	@echo "  retire-version  Retire a version on Hex (pass version=X.Y.Z)"
-	@echo "  help            Show this help message"
+	@echo "  compile              Compile the project"
+	@echo "  test                 Run the test suite"
+	@echo "  cover                Run tests with coverage (fails if below 90%)"
+	@echo "  regenerate           Regenerate Elixir fixtures from dev/test/fixtures/elixir/input/"
+	@echo "  regenerate-erlang    Regenerate Erlang fixtures from dev/test/fixtures/erlang/input/"
+	@echo "  clean                Remove build artefacts and dependencies"
+	@echo "  escript              Build the exalign standalone executable"
+	@echo "  publish              Publish to Hex (pass replace=1 to replace an existing version)"
+	@echo "  bump-version         Bump patch version"
+	@echo "  retire-version       Retire a version on Hex (pass version=X.Y.Z)"
+	@echo "  help                 Show this help message"
 
 test:
 	mix test
@@ -39,7 +40,7 @@ cover:
 	}'
 
 regenerate:
-	mix fmt.regenerate_tests
+	mix exalign.regenerate_tests
 
 escript:
 	mix escript.build

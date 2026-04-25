@@ -11,6 +11,7 @@ defmodule ExAlign.CLI do
       --line-length N       Maximum line length (default: 98)
       --wrap-short-lines    Re-wrap lines that are shorter than line-length
       --wrap-with backslash|do  How to wrap `do` expressions (default: backslash)
+      --eol-at-eof add|remove  End-of-file newline handling
       --check               Check formatting without writing files; exit 1 if any
                             file would be changed
       --dry-run             Print would-be changes without writing files
@@ -19,9 +20,10 @@ defmodule ExAlign.CLI do
 
   ## Global configuration
 
-  Default values for `--line-length`, `--wrap-short-lines`, and `--wrap-with`
-  can be set in `~/.config/exalign/.formatter.exs`. CLI flags always take
-  precedence over that file. See `ExAlign` module docs for the file format.
+  Default values for `--line-length`, `--wrap-short-lines`, `--wrap-with`, and
+  `--eol-at-eof` can be set in `~/.config/exalign/.formatter.exs`. CLI flags
+  always take precedence over that file. See `ExAlign` module docs for the file
+  format.
 
   ## Examples
 
@@ -34,6 +36,7 @@ defmodule ExAlign.CLI do
     line_length:      :integer,
     wrap_short_lines: :boolean,
     wrap_with:        :string,
+    eol_at_eof:       :string,
     check:            :boolean,
     dry_run:          :boolean,
     silent:           :boolean,
@@ -120,6 +123,11 @@ defmodule ExAlign.CLI do
     format_opts =
       if opts[:wrap_with],
         do:   Keyword.put(format_opts, :wrap_with, String.to_atom(opts[:wrap_with])),
+        else: format_opts
+
+    format_opts =
+      if opts[:eol_at_eof],
+        do:   Keyword.put(format_opts, :eol_at_eof, String.to_atom(opts[:eol_at_eof])),
         else: format_opts
 
     format_opts

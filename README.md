@@ -4,16 +4,21 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/exalign.svg)](https://hex.pm/packages/exalign)
 [![Hex.pm](https://img.shields.io/hexpm/dt/exalign.svg)](https://hex.pm/packages/exalign)
 
-A Mix formatter plugin that column-aligns Elixir code, inspired by how Go's
-`gofmt` aligns struct fields and variable declarations, which are more readable
-than the output of the default Elixir code formatter.
+A column-aligning code formatter for Elixir—inspired by how Go's `gofmt` aligns struct fields and variable declarations, which are more readable than standard formatter output.
+
+> **Looking for Erlang formatting?** Check out **[ErlAlign](https://github.com/saleyn/erlalign)**, a separate rebar3-based project for Erlang code.
 
 ## What it does
 
 `ExAlign` runs as a pass on top of the standard Elixir formatter. It
 scans consecutive lines that share the same indentation and pattern type, then
-pads them so their operators and values line up vertically. It also collapses
-short `->` arms back to one line when they fit within the line-length limit.
+pads them so their operators and values line up vertically. It also:
+
+- Collapses short `->` arms back to one line when they fit within the line-length limit
+- Aligns `->` operators vertically in case and cond blocks 
+- Aligns complex case patterns, guards, and arrows across arms
+- Extracts `do` keywords to their own line for complex block headers
+- Auto-detects and registers paren-free macros from aligned groups
 
 ### Keyword list / struct fields
 
@@ -95,6 +100,70 @@ appears two or more times with this shape is automatically added to
 `locals_without_parens` so the standard formatter does not add parentheses.
 Only lines with the **same macro name** and **same indentation** form a group.
 
+### Case arm alignment
+
+Aligns the `->` operator vertically across consecutive case arms:
+
+```elixir
+# before
+case Regex.run(pattern, text) do
+  [value] -> transform.(value)
+  _       -> nil
+end
+
+# after
+case Regex.run(pattern, text) do
+  [value] -> transform.(value)
+  _       -> nil
+end
+```
+
+### Cond arm alignment
+
+Aligns the `->` operator vertically across consecutive cond arms:
+
+```elixir
+# before
+cond do
+  x > 100 -> :large
+  x > 10  -> :medium
+  true    -> :small
+end
+
+# after
+cond do
+  x > 100 -> :large
+  x > 10  -> :medium
+  true    -> :small
+end
+```
+
+### Case block alignment (complex patterns with guards)
+
+Aligns tuple patterns, guards, and the `->` operator across case arms **only
+when all clauses are single-line** (pattern plus body fit on one line). If any
+clause has a multi-line body, the entire block is left unaligned:
+
+```elixir
+# all one-liners — aligned
+case {a, b} do
+  {nil,   nil}                    -> :both_nil
+  {x,     nil} when is_integer(x) -> {:left, x}
+  {nil,   y}                      -> {:right, y}
+  {x,     y}                      -> {x, y}
+end
+
+# mixed: last clause has multi-line body — NOT aligned
+case {Keyword.get(opts, :components), Keyword.get(opts, :structs)} do
+  {nil, nil} ->
+    raise ArgumentError, "must pass either :components or :structs"
+  {comps, nil} when is_list(comps) ->
+    {comps, false}
+  {_, structs} when is_list(structs) ->
+    {structs, true}
+end
+```
+
 ### Arrow-clause collapsing
 
 Short `->` arms (pattern + single-line body) that the standard formatter expands
@@ -120,18 +189,76 @@ end
 Arms whose body would exceed `line_length`, or arms with multi-line bodies, are
 left expanded.
 
-## Installation
+### Do extraction for complex headers
 
-### As a path dependency (local development)
+For `case`, `cond`, `with`, and other block expressions with complex (multi-line)
+headers, the `do` keyword is automatically moved to its own line for readability:
 
 ```elixir
-# mix.exs
-defp deps do
-  [{:exalign, path: "/path/to/formatter"}]
+# before (multi-line header)
+case list
+     |> Enum.filter(&is_integer/1)
+     |> Enum.sort() do
+  [] -> :empty
+  _ -> :ok
+end
+
+# after
+case list
+     |> Enum.filter(&is_integer/1)
+     |> Enum.sort()
+do
+  [] -> :empty
+  _ -> :ok
 end
 ```
 
-### From Hex (once published)
+Single-line headers are left unchanged.
+
+### With block formatting
+
+ExAlign handles multi-line `with` blocks with flexible formatting options controlled
+by the `wrap_with` configuration. When a `with` block spans multiple lines, you can
+choose how to format it:
+
+#### Standard formatter output (wrap_with: false)
+```elixir
+with {:ok, a} <- foo(),
+     {:ok, b} <- bar(a) do
+  {:ok, {a, b}}
+end
+```
+
+#### Do on separate line (wrap_with: true)
+```elixir
+with {:ok, a} <- foo(),
+     {:ok, b} <- bar(a)
+do
+  {:ok, {a, b}}
+end
+```
+
+#### Backslash wrapping (wrap_with: :backslash, default)
+Combines `do` extraction with a backslash after `with` and re-indents the clauses:
+
+```elixir
+with \
+  {:ok, a} <- foo(),
+  {:ok, b} <- bar(a)
+do
+  {:ok, {a, b}}
+end
+```
+
+The backslash style (`wrap_with: :backslash`) is the default as it provides visual
+clarity that the `with` clauses are a continuation rather than the clause structure
+of normal pattern matching.
+
+## Installation
+
+### As a library dependency
+
+Add to your `mix.exs`:
 
 ```elixir
 defp deps do
@@ -174,12 +301,84 @@ mix format
 `ExAlign` runs **after** `Code.format_string!`, so the standard Elixir
 style is preserved and column alignment is layered on top.
 
+## Programmatic usage
+
+You can also use ExAlign directly as a library:
+
+```elixir
+# Format a single code string
+code = """
+x = 1
+foo = "bar"
+something_long = 42
+"""
+
+formatted = ExAlign.format(code, line_length: 120)
+# => x              = 1\nfoo            = "bar"\nsomething_long = 42
+```
+
+Or in batch operations:
+
+```elixir
+"lib/**/*.ex"
+|> Path.wildcard()
+|> Enum.each(fn file ->
+  code = File.read!(file)
+  formatted = ExAlign.format(code, line_length: 120)
+  File.write!(file, formatted)
+end)
+```
+
+## Configuration
+
+When using ExAlign as a formatter plugin, you can pass options in `.formatter.exs`:
+
+```elixir
+[
+  plugins: [ExAlign],
+  inputs:  ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"],
+  
+  # ExAlign-specific options
+  line_length:  120,
+  wrap_with:    :backslash,
+  eol_at_eof:   :add
+]
+```
+
+Global configuration is also supported via `~/.config/exalign/.formatter.exs`:
+
+```elixir
+[
+  line_length: 120,
+  wrap_with:   :backslash,
+  eol_at_eof:  :add
+]
+```
+
+Project-local options always take precedence over global configuration.
+
+### Supported options
+
+- `:line_length` (integer, default `98`)  
+  Maximum line length. Used for both ExAlign alignment decisions and collapsing short `->` arms.
+
+- `:wrap_with` (`:do`, `:backslash`, or `false`, default `:backslash`)  
+  How to format multi-line `with` blocks. With `:backslash`, a backslash continuation is inserted after `with`, and clauses are re-indented. With `:do`, the `do` keyword is extracted to its own line. With `false`, the standard Elixir formatter output is used unchanged.
+
+- `:collapse_arrow_arms` (boolean, default `true`)  
+  When `true`, short `->` arms are collapsed to one line if they fit within `line_length`.
+
+- `:extract_do` (boolean, default `true`)  
+  When `true`, the `do` keyword is extracted to its own line for complex block headers.
+
+- `:eol_at_eof` (`:add`, `:remove`, or `nil`, default `nil`)  
+  Controls the end-of-file newline handling. With `:add`, a trailing newline is added if not present. With `:remove`, any trailing newline is removed. With `nil` (default), the end-of-file newline is left unchanged.
+
 ## Standalone `exalign` executable
 
 `exalign` is a self-contained escript that formats Elixir files without
 requiring a Mix project. Download the latest binary from the
-[GitHub releases page](https://github.com/saleyn/exalign/releases/latest) and place it somewhere on your
-`$PATH`.
+[GitHub releases page](https://github.com/saleyn/exalign/releases/latest) and place it somewhere on your `$PATH`.
 
 ### Usage
 
@@ -187,8 +386,7 @@ requiring a Mix project. Download the latest binary from the
 exalign [options] <file|dir> [<file|dir> ...]
 ```
 
-Files are formatted in-place. Directories are walked recursively for
-`*.ex` and `*.exs` files.
+Files are formatted in-place. Directories are walked recursively for `*.ex` and `*.exs` files.
 
 ### Program Options
 
@@ -197,8 +395,11 @@ Files are formatted in-place. Directories are walked recursively for
 | `--line-length N` | `98` | Maximum line length |
 | `--wrap-short-lines` | off | Keep `->` arms expanded instead of collapsing them |
 | `--wrap-with backslash\|do` | `backslash` | How to format multi-line `with` blocks |
+| `--eol-at-eof add\|remove` | unset | End-of-file newline handling (unset means leave unchanged) |
 | `--check` | off | Exit 1 if any file would be changed; write nothing |
-| `--dry-run` | off | Print reformatted content to stdout; write nothing || `-s`, `--silent` | off | Suppress stdout output (stderr warnings still shown) || `-h`, `--help` | | Print usage |
+| `--dry-run` | off | Print reformatted content to stdout; write nothing |
+| `-s`, `--silent` | off | Suppress stdout output (stderr warnings still shown) |
+| `-h`, `--help` | | Print usage |
 
 ### Examples
 
@@ -224,274 +425,6 @@ cd exalign
 make escript        # produces ./exalign
 ```
 
-## Configuration Options
-
-Options are passed through `.formatter.exs` alongside the standard formatter
-options. Here is a full example with all options set explicitly:
-
-```elixir
-# .formatter.exs
-[
-  plugins:               [ExAlign],
-  inputs:                ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"],
-  line_length:           98,
-  wrap_short_lines:      false,
-  wrap_with:             :backslash,
-  eol_at_eof:            nil,
-  locals_without_parens: [field: :*, validate: 2]
-]
-```
-
-Only include options you need to override — unset options use their defaults.
-
-### Global configuration
-
-Both the Mix plugin and the standalone `exalign` executable read default option
-values from `~/.config/exalign/.formatter.exs` when that file exists.
-Project-local `.formatter.exs` options (or CLI flags) always take precedence
-over the global file, which in turn takes precedence over built-in defaults.
-
-This is useful for enforcing personal preferences (e.g. `line_length: 120`)
-across all projects without touching each project's `.formatter.exs`.
-
-The file must evaluate to a keyword list containing only ExAlign-recognised
-keys (`:line_length`, `:wrap_short_lines`, `:wrap_with`, `:eol_at_eof`). ExAlign warns on
-unknown keys, non-keyword-list content, or evaluation errors, and skips the
-file in those cases.
-
-Example `~/.config/exalign/.formatter.exs`:
-
-```elixir
-[
-  line_length:      120,
-  wrap_short_lines: true,
-  wrap_with:        :backslash,
-  eol_at_eof:       :remove
-]
-```
-
-### `line_length` (integer, default `98`)
-
-Maximum line length forwarded to `Code.format_string!` and used as the threshold
-for arrow-clause collapsing. When aligned macro-call lines are longer than this
-value, the limit is automatically raised to the longest such line so the
-formatter does not break them.
-
-Arms whose collapsed form would exceed `line_length` are left expanded:
-
-```elixir
-# line_length: 60
-case result do
-  {:ok,    value}  -> transform_and_process(value)
-  {:error, reason} -> {:error, reason}
-end
-
-# line_length: 40  — first arm no longer fits inline
-case result do
-  {:ok,    value}  ->
-    transform_and_process(value)
-  {:error, reason} -> {:error, reason}
-end
-```
-
-```elixir
-# .formatter.exs
-[
-  plugins:     [ExAlign],
-  line_length: 120,
-  inputs:      ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
-]
-```
-
-### `wrap_short_lines` (boolean, default `false`)
-
-When `true`, disables the arrow-clause collapsing pass. The standard
-formatter's expanded form for `->` arms is preserved as-is.
-
-```elixir
-# wrap_short_lines: false (default) — arms collapsed and aligned
-case result do
-  {:ok, value}     -> value
-  {:error, reason} -> {:error, reason}
-  _                -> nil
-end
-
-# wrap_short_lines: true — arms stay expanded
-case result do
-  {:ok, value}     ->
-    value
-  {:error, reason} ->
-    {:error, reason}
-  _                ->
-    nil
-end
-```
-
-```elixir
-# .formatter.exs
-[
-  plugins:          [ExAlign],
-  wrap_short_lines: true,
-  inputs:           ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
-]
-```
-
-### `locals_without_parens` (keyword list)
-
-Merged with the macro names that `ExAlign` auto-detects. Use this to
-explicitly list macros that should remain paren-free, exactly as you would for
-the standard formatter.
-
-```elixir
-# without locals_without_parens — formatter adds parens
-preprocess(:name, &String.trim/1)
-preprocess(:email, &String.downcase/1)
-
-# with locals_without_parens: [preprocess: 2]
-preprocess :name,  &String.trim/1
-preprocess :email, &String.downcase/1
-```
-
-```elixir
-# .formatter.exs
-[
-  plugins:               [ExAlign],
-  locals_without_parens: [field: :*, preprocess: 2],
-  inputs:                ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
-]
-```
-
-Auto-detected names and explicitly listed names are merged; duplicates are
-removed automatically.
-
-### `wrap_with` (boolean or atom, default `:backslash`)
-
-Controls how `with` blocks whose clauses span multiple lines are formatted:
-
-| Value | Behaviour |
-|---|---|
-| `false` | Leave `do` at the end of the last clause (standard formatter output). |
-| `true` | Extract `do` onto its own line at the `with` keyword's indentation level. |
-| `:backslash` | Like `true`, **and** replace `with` with `with \` and re-indent all clauses two spaces in. |
-
-```elixir
-# wrap_with: false  (standard output)
-with {:ok, a} <- foo(),
-     {:ok, b} <- bar(a) do
-  {:ok, {a, b}}
-end
-
-# wrap_with: true
-with {:ok, a} <- foo(),
-     {:ok, b} <- bar(a)
-do
-  {:ok, {a, b}}
-end
-
-# wrap_with: :backslash  (default)
-with \
-  {:ok, a} <- foo(),
-  {:ok, b} <- bar(a)
-do
-  {:ok, {a, b}}
-end
-```
-
-```elixir
-# .formatter.exs
-[
-  plugins:   [ExAlign],
-  wrap_with: true,
-  inputs:    ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
-]
-```
-
-### `eol_at_eof` (atom or nil, default `nil`)
-
-Controls whether a newline is added, removed, or left untouched at the end of
-the file:
-
-| Value | Behaviour |
-|---|---|
-| `:remove` | Remove the trailing newline at the end of the file. |
-| `:add` | Add a trailing newline if not already present. |
-| `nil` | Leave the end-of-file newline untouched (default). |
-
-This is useful when working with version control systems or tools that enforce
-specific newline requirements at end-of-file.
-
-```elixir
-# .formatter.exs
-[
-  plugins:     [ExAlign],
-  eol_at_eof:  :add,
-  inputs:      ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
-]
-```
-
-## Alignment rules
-
-| Pattern | Aligned element | Example trigger |
-|---|---|---|
-| `:keyword` | space after atom key | `name: value` |
-| `:assignment` | `=` sign | `var = value` |
-| `:attribute` | value after `@attr` | `@attr value` |
-| `:arrow` | `=>` operator | `"key" => value` |
-| `{:macro_arg, name}` | second argument after `,` | `field :name, opts` |
-
-**Grouping:** only consecutive lines with the **same indentation** and **same
-pattern** (including the same macro name for `:macro_arg`) are aligned together.
-A blank line, a `#` comment, or a change in pattern or indent level always
-breaks the group. A group of one line is never modified.
-
-## Running tests
-
-```bash
-mix test
-```
-
-## Contributing
-
-All change requests must be accompanied by:
-
-1. **An input fixture** — a minimal `.ex` file placed in `test/fixtures/input/`
-   that reproduces the formatting behaviour being added or changed.
-2. **An expected output fixture** — the corresponding file in
-   `test/fixtures/expected/` showing exactly what `ExAlign` should
-   produce.
-
-Once both files are in place, regenerate the expected file and confirm the test
-suite passes:
-
-```bash
-mix fmt.regenerate_tests
-mix test
-```
-
-Pull requests that change formatting behaviour without a corresponding fixture
-pair will not be accepted.
-
-Make sure that test coverage is above **90%**. Check with `make cover`. 
-
-## Requirements
-
-- Elixir `~> 1.13`
-- No external dependencies
-
-## Disclaimer
-
-`ExAlign` **rewrites your source files in place**. While it is designed
-to be idempotent and purely cosmetic, any tool that modifies code carries a risk
-of introducing unexpected changes.
-
-**Use version control.** Always run the formatter on a clean working tree so
-that you can review the diff and revert if needed.
-
-The authors provide this software **as-is**, without warranty of any kind.
-They shall not be liable for any loss or corruption of source code, data, or
-other assets arising from the use of this tool. See the full disclaimer in
-the [MIT License](https://github.com/saleyn/exalign/blob/main/LICENSE).
-
 ## License
 
-MIT License. Copyright (c) 2026 Serge Aleynikov. See [LICENSE](https://github.com/saleyn/exalign/blob/main/LICENSE).
+MIT License - see LICENSE file

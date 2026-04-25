@@ -11,8 +11,7 @@ defmodule Example.NestedCase do
           nil  -> {:error, :missing_body}
           body -> {:ok, body}
         end
-      _ ->
-        {:error, :unsupported_method}
+      _ -> {:error, :unsupported_method}
     end
   end
 

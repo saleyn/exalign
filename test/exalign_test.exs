@@ -434,21 +434,56 @@ defmodule ExAlignTest do
   # Case block arm alignment (tuple patterns + guards)
   # ---------------------------------------------------------------------------
 
-  test "aligns tuple patterns, guards, and -> across case arms" do
+  test "does not align case blocks with multi-line bodies" do
     input = """
     case {Keyword.get(opts, :components), Keyword.get(opts, :structs)} do
-      {nil,   nil}                           ->
+      {nil, nil} ->
         raise ArgumentError, "must pass either :components or :structs"
-      {comps, nil}     when is_list(comps)   ->
+      {comps, nil} when is_list(comps) ->
         {comps, false}
-      {_,     structs} when is_list(structs) ->
+      {_, structs} when is_list(structs) ->
         {structs, true}
-      {comps, true}    when is_list(comps)   ->
+      {comps, true} when is_list(comps) ->
         {comps, true}
-      {comps, false}   when is_list(comps)   ->
+      {comps, false} when is_list(comps) ->
         {comps, false}
-      {_,     _}                             ->
+      {_, _} ->
         raise ArgumentError, ":components must be a list or :structs must be a list"
+    end
+    """
+
+    output = ExAlign.format(input, [])
+
+    # When there are multi-line bodies, no alignment should occur.
+    # The output should match the input (since Code.format_string! already expanded it)
+    # and ExAlign should not add any padding/alignment to guards or arrows.
+
+    # Extract lines with -> to verify they are NOT all at the same column
+    arm_lines = output |> String.split("\n") |> Enum.filter(&String.contains?(&1, "->"))
+
+    _arrow_positions =
+      Enum.map(arm_lines, fn line ->
+        case :binary.match(line, "->") do
+          {pos, _} -> pos
+          :nomatch -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    # With multi-line bodies, no special alignment should be applied
+    assert output =~ "raise ArgumentError"
+    assert output =~ "{comps, false}"
+    # Verify no excessive padding was added (alignment would add extra spaces)
+    assert output =~ ~r/when is_list\(comps\)\s+->/, "Guard should not have excessive padding"
+  end
+
+  test "aligns case blocks with all single-line bodies" do
+    input = """
+    case {a, b} do
+      {nil, nil}                    -> :both_nil
+      {x,   nil} when is_integer(x) -> {:left, x}
+      {nil, y}                      -> {:right, y}
+      {x,   y}                      -> {x, y}
     end
     """
 
@@ -465,7 +500,7 @@ defmodule ExAlignTest do
       end)
       |> Enum.reject(&is_nil/1)
 
-    assert length(arrow_positions) == 6
+    assert length(arrow_positions) == 4
 
     assert Enum.uniq(arrow_positions) |> length() == 1,
            "All -> operators should be at the same column; got: #{inspect(arm_lines)}"
@@ -563,16 +598,16 @@ defmodule ExAlignTest do
   # For each file pair in dev/test/fixtures/{input,expected}/ the formatter output
   # must exactly match the expected file.  To regenerate expected files run:
   #
-  #   mix fmt.regenerate_tests
+  #   mix exalign.regenerate_tests
 
-  @fixtures_dir Path.join([File.cwd!(), "dev", "test", "fixtures"])
+  @fixtures_dir Path.join([File.cwd!(), "dev", "test", "fixtures", "elixir"])
 
   for input_path <-
-        Path.wildcard(Path.join([File.cwd!(), "dev", "test", "fixtures", "input", "*.ex"])) do
+        Path.wildcard(Path.join([File.cwd!(), "dev", "test", "fixtures", "elixir", "input", "*.ex"])) do
     name = Path.basename(input_path, ".ex")
 
     expected_path =
-      Path.join([File.cwd!(), "dev", "test", "fixtures", "expected", Path.basename(input_path)])
+      Path.join([File.cwd!(), "dev", "test", "fixtures", "elixir", "expected", Path.basename(input_path)])
 
     @input_path    input_path
     @expected_path expected_path

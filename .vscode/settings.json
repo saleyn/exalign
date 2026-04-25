@@ -2,6 +2,8 @@
   "chat.tools.terminal.autoApprove": {
     "mix": true,
     "cp": true,
-    "diff": true
+    "diff": true,
+    "erlc": true,
+    "mkdir": true
   }
 }

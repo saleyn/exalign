@@ -904,36 +904,13 @@ defmodule ExAlign do
     if Enum.any?(parsed, &is_nil/1) do
       Enum.flat_map(arms, fn {head, body} -> [head | body] end)
     else
-      # If any arm has a multi-line body, keep all arms expanded but still
-      # align tuple patterns within the heads.
+      # If any arm has a multi-line body, do not align the block at all.
+      # Leave it as-is (return raw arms without alignment).
       any_multiline_body = Enum.any?(arms, fn {_head, body} -> length(body) > 1 end)
 
       if any_multiline_body do
-        # Align tuple patterns and guards but do NOT pad -> to a common column
-        # and do NOT collapse bodies inline.
-        patterns = Enum.map(parsed, &elem(&1, 0))
-        aligned_patterns = align_tuple_patterns(patterns)
-        max_pat_len = aligned_patterns |> Enum.map(&String.length/1) |> Enum.max()
-
-        Enum.zip(aligned_patterns, parsed)
-        |> Enum.flat_map(fn {aligned_pat, {_pat, guard, rhs, body}} ->
-          head_lhs =
-            case guard do
-              nil -> aligned_pat
-              g ->
-                pad = String.duplicate(" ", max_pat_len - String.length(aligned_pat) + 1)
-                "#{aligned_pat}#{pad}#{g}"
-            end
-
-          if rhs == "" do
-            # Multi-line body arm: head ends with ->
-            ["#{prefix}#{head_lhs} ->"] ++ body
-          else
-            # Already-collapsed single-line arm: keep as expanded (body on next line)
-            body_prefix = String.duplicate(" ", indent + 2)
-            ["#{prefix}#{head_lhs} ->", "#{body_prefix}#{rhs}"] ++ body
-          end
-        end)
+        # Return the block unaligned when any clause has a multi-line body
+        Enum.flat_map(arms, fn {head, body} -> [head | body] end)
       else
       patterns = Enum.map(parsed, &elem(&1, 0))
       aligned_patterns = align_tuple_patterns(patterns)

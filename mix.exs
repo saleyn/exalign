@@ -4,10 +4,10 @@ defmodule ExAlign.MixProject do
   def project do
     [
       app:               :exalign,
-      version:           "0.1.10",
+      version:           "0.1.11",
       elixir:            "~> 1.13",
       start_permanent:   Mix.env() == :prod,
-      description:       "A Mix formatter plugin that column-aligns Elixir code",
+      description:       "Column-aligning formatter for Elixir code",
       elixirc_paths:     elixirc_paths(Mix.env()),
       test_load_filters: [~r/_test\.exs$/],
       package:           package(),
@@ -29,17 +29,17 @@ defmodule ExAlign.MixProject do
     [main_module: ExAlign.CLI, name: "exalign"]
   end
 
-  defp elixirc_paths(:dev), do: ["lib"] ++ Path.wildcard("dev/mix/**/*.ex")
+  defp elixirc_paths(:dev), do: ["lib"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp package do
     [
-      files:       ~w(lib dev .formatter.exs mix.* Makefile README* LICENSE*),
+      files:       ~w(lib dev .formatter.exs mix.* README* LICENSE*),
       licenses:    ["MIT"],
       maintainers: ["Serge Aleynikov"],
       keywords:    ["elixir", "formatter", "format", "fmt", "align", "source", "code",
-                    "code-style", "text-alignment", "utilities"],
-      links:       %{"GitHub" => "https://github.com/saleyn/exalign"}
+                    "code-style", "text-alignment"],
+      links:       %{"GitHub" => "https://github.com/saleyn/exalign", "ErlAlign" => "https://github.com/saleyn/exalign/tree/main/erlalign"}
     ]
   end
 
